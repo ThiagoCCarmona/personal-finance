@@ -87,8 +87,15 @@ export async function buildApp() {
   await app.register(sistemaRoutes, { prefix: '/api/sistema' });
 
   // Servir frontend compilado estaticamente em produção se existir
-  const clientDistPath = path.resolve(__dirname, '../../frontend/dist');
-  if (fs.existsSync(clientDistPath)) {
+  const candidatePaths = [
+    path.resolve(__dirname, '../frontend/dist'),     // Docker / produção compilada (dist/server.js -> frontend/dist)
+    path.resolve(__dirname, '../../frontend/dist'),    // Desenvolvimento TS (src/server.ts -> frontend/dist)
+    path.resolve(process.cwd(), 'frontend/dist'),     // Raiz do projeto
+    '/app/frontend/dist',                             // Path absoluto dentro do container
+  ];
+  const clientDistPath = candidatePaths.find((p) => fs.existsSync(p));
+
+  if (clientDistPath) {
     await app.register(fastifyStatic, {
       root: clientDistPath,
       prefix: '/',
