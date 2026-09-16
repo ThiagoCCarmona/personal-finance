@@ -1,0 +1,58 @@
+# Produção — usa Traefik como reverse proxy
+# Copie .env.example para .env e preencha os valores antes de subir
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: financeiro-db
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: finan-app:latest
+    container_name: financeiro-app
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.financeiro.rule=Host(`finan.tccodes.com.br`)"
+      - "traefik.http.routers.financeiro.entrypoints=websecure"
+      - "traefik.http.routers.financeiro.tls.certresolver=myresolver"
+      - "traefik.http.services.financeiro.loadbalancer.server.port=3001"
+      - "traefik.http.routers.financeiro-http.rule=Host(`finan.tccodes.com.br`)"
+      - "traefik.http.routers.financeiro-http.entrypoints=web"
+      - "traefik.http.routers.financeiro-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  internal:
+    driver: bridge
+  proxy:
+    external: true
