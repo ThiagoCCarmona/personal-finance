@@ -123,9 +123,16 @@ export class DashboardService {
   /**
    * Contas e Faturas a Pagar do Mês + Comprometimento Futuro
    */
-  async getContasAPagarDoMes(anoMesParam?: string) {
+  async getContasAPagarDoMes(anoOuAnoMes?: string | number, mesParam?: number) {
     const hoje = new Date();
-    const targetAnoMes = anoMesParam || `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    let targetAnoMes = '';
+    if (typeof anoOuAnoMes === 'number' && typeof mesParam === 'number') {
+      targetAnoMes = `${anoOuAnoMes}-${String(mesParam).padStart(2, '0')}`;
+    } else if (typeof anoOuAnoMes === 'string' && /^\d{4}-\d{2}$/.test(anoOuAnoMes)) {
+      targetAnoMes = anoOuAnoMes;
+    } else {
+      targetAnoMes = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    }
 
     // 1. Faturas de cada cartão de crédito para o mês
     const { rows: cartoes } = await query(
