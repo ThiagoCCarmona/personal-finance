@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Plus, Trash2, PieChart as PieIcon, Building2, Clock, X } from 'lucide-react';
+import { TrendingUp, Plus, Trash2, PieChart as PieIcon, Building2, Clock, X, Edit2 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { PosicaoAtivo, ResumoCarteira, TipoInvestimento } from '../types/index.js';
 import { PrivacyValue } from '../components/common/PrivacyValue.js';
@@ -12,6 +12,7 @@ export const InvestimentosPage: React.FC = () => {
   const [moedas, setMoedas] = useState<any[]>([]);
 
   const [showModalNovoAtivo, setShowModalNovoAtivo] = useState(false);
+  const [editingAtivoId, setEditingAtivoId] = useState<string | null>(null);
   const [formAtivo, setFormAtivo] = useState<{
     tipo: TipoInvestimento;
     nome: string;
@@ -78,10 +79,40 @@ export const InvestimentosPage: React.FC = () => {
     carregarDados();
   }, []);
 
+  const handleAbrirNovoAtivo = () => {
+    setEditingAtivoId(null);
+    setFormAtivo({
+      tipo: 'renda_fixa',
+      nome: '',
+      ticker: '',
+      moeda_id: moedas[0]?.id || '',
+      instituicao: '',
+      indexador: '100% CDI',
+      taxa_anual: '',
+      data_vencimento: '',
+    });
+    setShowModalNovoAtivo(true);
+  };
+
+  const handleEditarAtivo = (ativo: PosicaoAtivo) => {
+    setEditingAtivoId(ativo.id);
+    setFormAtivo({
+      tipo: ativo.tipo,
+      nome: ativo.nome,
+      ticker: ativo.ticker || '',
+      moeda_id: ativo.moeda_id || (moedas[0]?.id || ''),
+      instituicao: ativo.instituicao || '',
+      indexador: ativo.indexador || '',
+      taxa_anual: ativo.taxa_anual ? String(ativo.taxa_anual) : '',
+      data_vencimento: ativo.data_vencimento || '',
+    });
+    setShowModalNovoAtivo(true);
+  };
+
   const handleSalvarAtivo = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.createInvestimento({
+      const payload = {
         tipo: formAtivo.tipo,
         nome: formAtivo.nome,
         ticker: formAtivo.ticker || undefined,
@@ -90,18 +121,15 @@ export const InvestimentosPage: React.FC = () => {
         indexador: formAtivo.indexador || undefined,
         taxa_anual: formAtivo.taxa_anual ? Number(formAtivo.taxa_anual) : undefined,
         data_vencimento: formAtivo.data_vencimento || undefined,
-      });
+      };
+
+      if (editingAtivoId) {
+        await api.updateInvestimento(editingAtivoId, payload);
+      } else {
+        await api.createInvestimento(payload);
+      }
       setShowModalNovoAtivo(false);
-      setFormAtivo({
-        tipo: 'renda_fixa',
-        nome: '',
-        ticker: '',
-        moeda_id: moedas[0]?.id || '',
-        instituicao: '',
-        indexador: '100% CDI',
-        taxa_anual: '',
-        data_vencimento: '',
-      });
+      setEditingAtivoId(null);
       carregarDados();
     } catch (err) {
       alert('Erro ao salvar ativo.');
@@ -179,7 +207,7 @@ export const InvestimentosPage: React.FC = () => {
           <p className='text-sm text-slate-400 mt-1'>Gestao de ativos, preco medio ponderado, aportes e rendimentos</p>
         </div>
         <button
-          onClick={() => setShowModalNovoAtivo(true)}
+          onClick={handleAbrirNovoAtivo}
           className='flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition shadow-lg shadow-blue-600/20'
         >
           <Plus size={18} />
@@ -293,9 +321,10 @@ export const InvestimentosPage: React.FC = () => {
                         <div className='text-[11px] text-slate-400 mt-0.5'>Qtd: <span className='font-mono text-slate-300'>{ativo.quantidade_total}</span>{ativo.preco_medio > 0 && <> | PM: <span className='font-mono text-slate-300'>R$ {ativo.preco_medio.toFixed(2)}</span></>}</div>
                       </div>
                       <div className='flex items-center gap-1.5'>
-                         <button onClick={() => { setAtivoSelecionado(ativo); setShowModalMov(true); }} className='bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 px-3 py-1.5 rounded-lg text-xs font-medium transition'>Movimentar</button>
-                        <button onClick={() => handleExcluirAtivo(ativo.id, ativo.nome)} className='p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition'><Trash2 size={16} /></button>
-                     </div>
+                        <button onClick={() => { setAtivoSelecionado(ativo); setShowModalMov(true); }} className='bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 px-3 py-1.5 rounded-lg text-xs font-medium transition'>Movimentar</button>
+                        <button onClick={() => handleEditarAtivo(ativo)} title="Editar Ativo" className='p-1.5 text-slate-400 hover:text-blue-400 rounded-lg transition'><Edit2 size={16} /></button>
+                        <button onClick={() => handleExcluirAtivo(ativo.id, ativo.nome)} title="Excluir Ativo" className='p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition'><Trash2 size={16} /></button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -309,7 +338,7 @@ export const InvestimentosPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 relative shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-slate-100">Cadastrar Novo Ativo</h3>
+              <h3 className="text-lg font-bold text-slate-100">{editingAtivoId ? 'Editar Ativo' : 'Cadastrar Novo Ativo'}</h3>
               <button onClick={() => setShowModalNovoAtivo(false)} className="text-slate-400 hover:text-slate-200">
                 <X size={20} />
               </button>

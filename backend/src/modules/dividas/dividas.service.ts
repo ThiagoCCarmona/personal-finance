@@ -277,6 +277,85 @@ export class DividasService {
       client.release();
     }
   }
+
+  // Atualizar dados cadastrais da dívida
+  async atualizar(dividaId: string, dados: import('./dividas.schema.js').AtualizarDividaInput): Promise<DividaItem | null> {
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (dados.motivo !== undefined) {
+      fields.push(`motivo = $${idx++}`);
+      values.push(dados.motivo.trim());
+    }
+    if (dados.valor_total !== undefined) {
+      fields.push(`valor_total = $${idx++}`);
+      values.push(dados.valor_total);
+    }
+    if (dados.data !== undefined) {
+      fields.push(`data = $${idx++}`);
+      values.push(dados.data);
+    }
+    if (dados.vencimento !== undefined) {
+      fields.push(`vencimento = $${idx++}`);
+      values.push(dados.vencimento ? dados.vencimento : null);
+    }
+
+    if (fields.length === 0) {
+      const items = await this.listar();
+      return items.find(d => d.id === dividaId) || null;
+    }
+
+    fields.push(`atualizado_em = NOW()`);
+    values.push(dividaId);
+
+    await query(`UPDATE divida SET ${fields.join(', ')} WHERE id = $${idx}`, values);
+    const items = await this.listar();
+    return items.find(d => d.id === dividaId) || null;
+  }
+
+  // Excluir dívida: Desfaz débito caso tenha sido empréstimo que debitou conta e não foi pago
+  async excluir(dividaId: string): Promise<boolean> {
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      const dRes = await client.query('SELECT * FROM divida WHERE id = $1 FOR UPDATE', [dividaId]);
+      if (dRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return false;
+      }
+      const divida = dRes.rows[0];
+
+      // Se for empréstimo que debitou conta e não teve baixa
+      if (divida.conta_origem_id && parseFloat(divida.valor_pago) === 0 && !divida.despesa_compartilhada_id) {
+        // Estorna o saldo da conta que foi debitado
+        await client.query('UPDATE conta SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() WHERE id = $2', [
+          divida.valor_total,
+          divida.conta_origem_id
+        ]);
+        // Remove o lançamento financeiro gerado
+        await client.query(`DELETE FROM lancamento WHERE conta_id = $1 AND descricao LIKE $2 AND tipo = 'despesa'`, [
+          divida.conta_origem_id,
+          `%${divida.motivo}%`
+        ]);
+      }
+
+      // Remove referências em cobrança PIX
+      await client.query('DELETE FROM cobranca_pix WHERE divida_id = $1', [dividaId]);
+
+      // Remove a dívida
+      await client.query('DELETE FROM divida WHERE id = $1', [dividaId]);
+
+      await client.query('COMMIT');
+      return true;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 export const dividasService = new DividasService();

@@ -7,4 +7,7 @@ export const CriarPessoaSchema = z.object({
   email: z.string().email('E-mail inválido').optional().or(z.literal(''))
 });
 
+export const AtualizarPessoaSchema = CriarPessoaSchema.partial();
+
 export type CriarPessoaInput = z.infer<typeof CriarPessoaSchema>;
+export type AtualizarPessoaInput = z.infer<typeof AtualizarPessoaSchema>;

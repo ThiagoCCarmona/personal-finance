@@ -7,5 +7,6 @@ export async function pessoasRoutes(app: FastifyInstance) {
 
   app.get('/', (req, rep) => pessoasController.listar(req, rep));
   app.post('/', (req, rep) => pessoasController.criar(req, rep));
+  app.put('/:id', (req: any, rep) => pessoasController.atualizar(req, rep));
   app.delete('/:id', (req: any, rep) => pessoasController.excluir(req, rep));
 }

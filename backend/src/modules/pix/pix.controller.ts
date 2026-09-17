@@ -44,6 +44,12 @@ export class PixController {
     await pixService.confirmarRecebimento(request.params.id, parse.data);
     return reply.send({ success: true });
   }
+
+  async excluirCobranca(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const ok = await pixService.excluirCobranca(request.params.id);
+    if (!ok) return reply.status(404).send({ error: 'Cobrança não encontrada' });
+    return reply.send({ success: true });
+  }
 }
 
 export const pixController = new PixController();

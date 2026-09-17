@@ -188,6 +188,9 @@ export class PixService {
     } finally {
       client.release();
     }
+  async excluirCobranca(id: string): Promise<boolean> {
+    const { rowCount } = await query('DELETE FROM cobranca_pix WHERE id = $1', [id]);
+    return (rowCount ?? 0) > 0;
   }
 }
 

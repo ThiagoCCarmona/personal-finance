@@ -98,6 +98,53 @@ export class DespesasCompartilhadasService {
       client.release();
     }
   }
+
+  async excluir(id: string): Promise<boolean> {
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      const dcRes = await client.query('SELECT * FROM despesa_compartilhada WHERE id = $1 FOR UPDATE', [id]);
+      if (dcRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return false;
+      }
+      const despesa = dcRes.rows[0];
+
+      // 1. Se foi paga por conta bancária, estorna o valor total debitado
+      if (despesa.conta_origem_id) {
+        await client.query('UPDATE conta SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() WHERE id = $2', [
+          despesa.valor_total,
+          despesa.conta_origem_id
+        ]);
+        // Remove lançamento de despesa associado
+        await client.query(`DELETE FROM lancamento WHERE conta_id = $1 AND descricao LIKE $2 AND tipo = 'despesa'`, [
+          despesa.conta_origem_id,
+          `%${despesa.descricao}%`
+        ]);
+      }
+
+      // 2. Remove cobranças PIX associadas às dívidas desta divisão
+      await client.query(`
+        DELETE FROM cobranca_pix 
+        WHERE divida_id IN (SELECT id FROM divida WHERE despesa_compartilhada_id = $1)
+      `, [id]);
+
+      // 3. Remove dívidas filhas geradas
+      await client.query('DELETE FROM divida WHERE despesa_compartilhada_id = $1', [id]);
+
+      // 4. Remove a despesa compartilhada
+      await client.query('DELETE FROM despesa_compartilhada WHERE id = $1', [id]);
+
+      await client.query('COMMIT');
+      return true;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 export const despesasCompartilhadasService = new DespesasCompartilhadasService();

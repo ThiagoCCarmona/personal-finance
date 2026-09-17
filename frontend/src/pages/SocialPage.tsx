@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, HandCoins, UserPlus, Receipt, 
-  CheckCircle, Ban, AlertCircle
+  CheckCircle, Ban, AlertCircle, QrCode, Trash2, Edit2, Copy, Check, X
 } from 'lucide-react';
 import { api } from '../services/api';
-import { Pessoa, Divida, ResumoDividas, Conta } from '../types';
+import { Pessoa, Divida, ResumoDividas, Conta, ChavePix, DespesaCompartilhada } from '../types';
 import { PrivacyValue } from '../components/common/PrivacyValue';
 
 export const SocialPage: React.FC = () => {
@@ -13,18 +13,37 @@ export const SocialPage: React.FC = () => {
   const [dividas, setDividas] = useState<Divida[]>([]);
   const [resumo, setResumo] = useState<ResumoDividas>({ totalReceber: 0, totalRecebido: 0, totalPerdoado: 0, qtdPendentes: 0 });
   const [contas, setContas] = useState<Conta[]>([]);
+  const [chavesPix, setChavesPix] = useState<ChavePix[]>([]);
+  const [despesasCompartilhadas, setDespesasCompartilhadas] = useState<DespesaCompartilhada[]>([]);
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
 
   // Modais
   const [modalPessoa, setModalPessoa] = useState(false);
+  const [editingPessoaId, setEditingPessoaId] = useState<string | null>(null);
+
   const [modalEmprestimo, setModalEmprestimo] = useState(false);
+  const [editingDividaId, setEditingDividaId] = useState<string | null>(null);
+
   const [modalDivisao, setModalDivisao] = useState(false);
   const [modalBaixa, setModalBaixa] = useState<{ open: boolean; divida?: Divida }>({ open: false });
 
-  // Formulário Nova Pessoa
+  // Modal QR Code PIX com Seleção Explícita de Chave
+  const [modalQrPix, setModalQrPix] = useState<{
+    open: boolean;
+    pessoaNome: string;
+    valor: number;
+    motivo: string;
+    dividaId?: string;
+  }>({ open: false, pessoaNome: '', valor: 0, motivo: '' });
+  const [chaveSelecionadaId, setChaveSelecionadaId] = useState<string>('');
+  const [cobrancaGerada, setCobrancaGerada] = useState<{ payload_emv: string; txid: string } | null>(null);
+  const [copiado, setCopiado] = useState(false);
+  const [gerandoPix, setGerandoPix] = useState(false);
+
+  // Formulário Nova / Editar Pessoa
   const [formPessoa, setFormPessoa] = useState({ nome: '', apelido: '', telefone: '', email: '' });
 
-  // Formulário Novo Empréstimo
+  // Formulário Novo / Editar Empréstimo
   const [formEmprestimo, setFormEmprestimo] = useState({
     pessoa_id: '',
     valor_total: '',
@@ -55,16 +74,24 @@ export const SocialPage: React.FC = () => {
   const carregarDados = async () => {
     try {
       setLoading(true);
-      const [pRes, dRes, rRes, cRes] = await Promise.all([
+      const [pRes, dRes, rRes, cRes, chRes, dcRes] = await Promise.all([
         api.getPessoas().catch(() => []),
         api.getDividas(filtroStatus !== 'todos' ? filtroStatus : undefined).catch(() => []),
         api.getResumoDividas().catch(() => ({ totalReceber: 0, totalRecebido: 0, totalPerdoado: 0, qtdPendentes: 0 })),
-        api.getContas().catch(() => [])
+        api.getContas().catch(() => []),
+        api.getChavesPix().catch(() => []),
+        api.getDespesasCompartilhadas().catch(() => [])
       ]);
       setPessoas(Array.isArray(pRes) ? pRes : (pRes as any)?.data || []);
       setDividas(Array.isArray(dRes) ? dRes : (dRes as any)?.data || []);
       setResumo(rRes && typeof rRes === 'object' ? ((rRes as any)?.data || rRes) : { totalReceber: 0, totalRecebido: 0, totalPerdoado: 0, qtdPendentes: 0 });
       setContas(Array.isArray(cRes) ? cRes : (cRes as any)?.data || []);
+      const chaves = Array.isArray(chRes) ? chRes : (chRes as any)?.data || [];
+      setChavesPix(chaves);
+      if (chaves.length > 0 && !chaveSelecionadaId) {
+        setChaveSelecionadaId(chaves[0].id);
+      }
+      setDespesasCompartilhadas(Array.isArray(dcRes) ? dcRes : (dcRes as any)?.data || []);
     } catch (err) {
       console.error('Erro ao carregar dados sociais:', err);
     } finally {
@@ -76,36 +103,109 @@ export const SocialPage: React.FC = () => {
     carregarDados();
   }, [filtroStatus]);
 
-  // Ações de formulário
-  const handleCriarPessoa = async (e: React.FormEvent) => {
+  // Ações de Pessoa
+  const handleAbrirNovaPessoa = () => {
+    setEditingPessoaId(null);
+    setFormPessoa({ nome: '', apelido: '', telefone: '', email: '' });
+    setModalPessoa(true);
+  };
+
+  const handleEditarPessoa = (p: Pessoa) => {
+    setEditingPessoaId(p.id);
+    setFormPessoa({
+      nome: p.nome,
+      apelido: p.apelido || '',
+      telefone: p.telefone || '',
+      email: p.email || ''
+    });
+    setModalPessoa(true);
+  };
+
+  const handleSalvarPessoa = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formPessoa.nome) return;
     try {
-      await api.createPessoa(formPessoa);
+      if (editingPessoaId) {
+        await api.updatePessoa(editingPessoaId, formPessoa);
+      } else {
+        await api.createPessoa(formPessoa);
+      }
       setModalPessoa(false);
+      setEditingPessoaId(null);
       setFormPessoa({ nome: '', apelido: '', telefone: '', email: '' });
       carregarDados();
     } catch (err: any) {
-      alert(err.message || 'Erro ao criar contato');
+      alert(err.message || 'Erro ao salvar contato');
     }
   };
 
-  const handleCriarEmprestimo = async (e: React.FormEvent) => {
+  const handleExcluirPessoa = async (p: Pessoa) => {
+    if (!confirm(`Deseja realmente excluir o contato de ${p.nome}?`)) return;
+    try {
+      await api.deletePessoa(p.id);
+      carregarDados();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir contato');
+    }
+  };
+
+  // Ações de Empréstimo / Dívida
+  const handleAbrirNovoEmprestimo = () => {
+    setEditingDividaId(null);
+    setFormEmprestimo({
+      pessoa_id: pessoas[0]?.id || '',
+      valor_total: '',
+      motivo: '',
+      conta_origem_id: contas[0]?.id || '',
+      data: new Date().toISOString().split('T')[0],
+      vencimento: ''
+    });
+    setModalEmprestimo(true);
+  };
+
+  const handleEditarDivida = (d: Divida) => {
+    setEditingDividaId(d.id);
+    setFormEmprestimo({
+      pessoa_id: d.pessoa_id,
+      valor_total: d.valor_total.toString(),
+      motivo: d.motivo,
+      conta_origem_id: d.conta_origem_id || '',
+      data: d.data,
+      vencimento: d.vencimento || ''
+    });
+    setModalEmprestimo(true);
+  };
+
+  const handleSalvarEmprestimo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formEmprestimo.pessoa_id || !formEmprestimo.valor_total || !formEmprestimo.conta_origem_id) {
+    if (!formEmprestimo.pessoa_id || !formEmprestimo.valor_total) {
       alert('Preencha os campos obrigatórios');
       return;
     }
     try {
-      await api.createEmprestimo({
-        pessoa_id: formEmprestimo.pessoa_id,
-        valor_total: parseFloat(formEmprestimo.valor_total),
-        motivo: formEmprestimo.motivo || 'Empréstimo',
-        conta_origem_id: formEmprestimo.conta_origem_id,
-        data: formEmprestimo.data || undefined,
-        vencimento: formEmprestimo.vencimento || undefined
-      });
+      if (editingDividaId) {
+        await api.updateDivida(editingDividaId, {
+          motivo: formEmprestimo.motivo,
+          valor_total: parseFloat(formEmprestimo.valor_total),
+          data: formEmprestimo.data,
+          vencimento: formEmprestimo.vencimento || undefined
+        });
+      } else {
+        if (!formEmprestimo.conta_origem_id) {
+          alert('Selecione a conta de onde saiu o dinheiro');
+          return;
+        }
+        await api.createEmprestimo({
+          pessoa_id: formEmprestimo.pessoa_id,
+          valor_total: parseFloat(formEmprestimo.valor_total),
+          motivo: formEmprestimo.motivo || 'Empréstimo',
+          conta_origem_id: formEmprestimo.conta_origem_id,
+          data: formEmprestimo.data || undefined,
+          vencimento: formEmprestimo.vencimento || undefined
+        });
+      }
       setModalEmprestimo(false);
+      setEditingDividaId(null);
       setFormEmprestimo({
         pessoa_id: '',
         valor_total: '',
@@ -116,8 +216,76 @@ export const SocialPage: React.FC = () => {
       });
       carregarDados();
     } catch (err: any) {
-      alert(err.message || 'Erro ao registrar empréstimo');
+      alert(err.message || 'Erro ao salvar dívida');
     }
+  };
+
+  const handleExcluirDivida = async (d: Divida) => {
+    if (!confirm(`Deseja realmente excluir a dívida de ${d.pessoa_nome} (${d.motivo})? Se for um empréstimo não quitado, o valor será estornado para a conta de origem.`)) {
+      return;
+    }
+    try {
+      await api.deleteDivida(d.id);
+      carregarDados();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir dívida');
+    }
+  };
+
+  const handleExcluirDespesaCompartilhada = async (dc: DespesaCompartilhada) => {
+    if (!confirm(`Deseja excluir a divisão "${dc.descricao}"? As cotas geradas serão canceladas e o débito da conta estornado.`)) {
+      return;
+    }
+    try {
+      await api.deleteDespesaCompartilhada(dc.id);
+      carregarDados();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir divisão');
+    }
+  };
+
+  // Gerador de QR Code PIX com Seleção Explícita de Chave
+  const handleAbrirModalQrPix = (pessoaNome: string, valor: number, motivo: string, dividaId?: string) => {
+    setCobrancaGerada(null);
+    setCopiado(false);
+    setModalQrPix({
+      open: true,
+      pessoaNome,
+      valor,
+      motivo,
+      dividaId
+    });
+  };
+
+  const handleGerarQrPix = async () => {
+    if (!chaveSelecionadaId) {
+      alert('Selecione qual chave PIX você deseja utilizar.');
+      return;
+    }
+    try {
+      setGerandoPix(true);
+      const nova = await api.createCobrancaPix({
+        chave_pix_id: chaveSelecionadaId,
+        valor: modalQrPix.valor,
+        mensagem: `Cota de ${modalQrPix.pessoaNome} - ${modalQrPix.motivo}`.substring(0, 140),
+        divida_id: modalQrPix.dividaId
+      });
+      setCobrancaGerada({
+        payload_emv: nova.payload_emv,
+        txid: nova.txid
+      });
+      carregarDados();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao gerar QR Code PIX');
+    } finally {
+      setGerandoPix(false);
+    }
+  };
+
+  const handleCopiarPix = (texto: string) => {
+    navigator.clipboard.writeText(texto);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2500);
   };
 
   const handleCalcularDivisaoIgual = () => {
@@ -220,7 +388,7 @@ export const SocialPage: React.FC = () => {
         </div>
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => setModalPessoa(true)}
+            onClick={handleAbrirNovaPessoa}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
           >
             <UserPlus className="w-4 h-4" />
@@ -234,7 +402,7 @@ export const SocialPage: React.FC = () => {
             Dividir Despesa
           </button>
           <button
-            onClick={() => setModalEmprestimo(true)}
+            onClick={handleAbrirNovoEmprestimo}
             className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
           >
             <HandCoins className="w-4 h-4" />
@@ -278,25 +446,66 @@ export const SocialPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Contatos com Saldos em Destaque */}
-      {pessoas.some(p => p.total_a_receber > 0) && (
-        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 p-4 rounded-xl">
-          <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-1.5 mb-2">
-            <AlertCircle className="w-4 h-4 text-amber-600" />
-            Quem deve para você agora:
+      {/* Gerenciamento de Contatos & Amigos */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-1.5">
+            <Users className="w-4 h-4 text-indigo-500" />
+            Amigos e Contatos Cadastrados ({pessoas.length})
           </h3>
-          <div className="flex flex-wrap gap-2">
-            {pessoas.filter(p => p.total_a_receber > 0).map(p => (
-              <div key={p.id} className="bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 text-sm flex items-center gap-2 shadow-xs">
-                <span className="font-medium text-gray-800 dark:text-gray-200">{p.nome} {p.apelido && `(${p.apelido})`}:</span>
-                <span className="font-bold text-amber-600 dark:text-amber-400">
-                  <PrivacyValue value={p.total_a_receber} />
-                </span>
+          <button
+            onClick={handleAbrirNovaPessoa}
+            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+          >
+            + Adicionar
+          </button>
+        </div>
+
+        {pessoas.length === 0 ? (
+          <p className="text-xs text-gray-400">Nenhum contato cadastrado ainda.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+            {pessoas.map(p => (
+              <div
+                key={p.id}
+                className="bg-gray-50 dark:bg-gray-750 p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between"
+              >
+                <div className="min-w-0 pr-2">
+                  <div className="text-xs font-semibold text-gray-900 dark:text-white truncate">
+                    {p.nome} {p.apelido && <span className="text-gray-400 font-normal">({p.apelido})</span>}
+                  </div>
+                  {p.total_a_receber > 0 ? (
+                    <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 block">
+                      Deve: <PrivacyValue value={p.total_a_receber} />
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-gray-400 block truncate">
+                      {p.telefone || p.email || 'Sem pendências'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => handleEditarPessoa(p)}
+                    title="Editar Contato"
+                    className="p-1 text-gray-400 hover:text-blue-500 rounded"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleExcluirPessoa(p)}
+                    title="Excluir Contato"
+                    className="p-1 text-gray-400 hover:text-rose-500 rounded"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Lista de Contas a Receber / Dívidas */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
@@ -378,6 +587,13 @@ export const SocialPage: React.FC = () => {
                       {['pendente', 'parcial'].includes(d.status) && (
                         <>
                           <button
+                            onClick={() => handleAbrirModalQrPix(d.pessoa_nome, d.saldo_devedor, d.motivo, d.id)}
+                            title="Gerar QR Code PIX para esta cota"
+                            className="p-1.5 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded"
+                          >
+                            <QrCode className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => {
                               setModalBaixa({ open: true, divida: d });
                               setFormBaixa({
@@ -392,14 +608,28 @@ export const SocialPage: React.FC = () => {
                             <CheckCircle className="w-4 h-4" />
                           </button>
                           <button
+                            onClick={() => handleEditarDivida(d)}
+                            title="Editar dívida"
+                            className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => handlePerdoar(d)}
                             title="Perdoar dívida"
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded"
+                            className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded"
                           >
                             <Ban className="w-4 h-4" />
                           </button>
                         </>
                       )}
+                      <button
+                        onClick={() => handleExcluirDivida(d)}
+                        title="Excluir dívida"
+                        className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -409,12 +639,75 @@ export const SocialPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL NOVA PESSOA */}
+      {/* Histórico de Despesas Compartilhadas (Divisões em Grupo) */}
+      {despesasCompartilhadas.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-indigo-500" />
+              Despesas Compartilhadas Registradas
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Histórico de contas divididas em grupo. Excluir uma divisão estorna o débito e cancela as cotas pendentes.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase">
+                <tr>
+                  <th className="px-4 py-3">Descrição</th>
+                  <th className="px-4 py-3">Data</th>
+                  <th className="px-4 py-3">Origem</th>
+                  <th className="px-4 py-3 text-right">Valor Total</th>
+                  <th className="px-4 py-3 text-center">Participantes</th>
+                  <th className="px-4 py-3 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {despesasCompartilhadas.map(dc => (
+                  <tr key={dc.id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                      {dc.descricao}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      {dc.data}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      {dc.conta_nome || dc.cartao_nome || 'Outro'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
+                      <PrivacyValue value={dc.valor_total} />
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs">
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 font-semibold">
+                        {dc.total_participantes} amigos
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => handleExcluirDespesaCompartilhada(dc)}
+                        title="Excluir Divisão e Estornar"
+                        className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL NOVA / EDITAR PESSOA */}
       {modalPessoa && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700 shadow-xl">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Novo Contato / Amigo</h3>
-            <form onSubmit={handleCriarPessoa} className="space-y-4">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+              {editingPessoaId ? 'Editar Contato / Amigo' : 'Novo Contato / Amigo'}
+            </h3>
+            <form onSubmit={handleSalvarPessoa} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Nome Completo *</label>
                 <input
@@ -478,22 +771,27 @@ export const SocialPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL EMPRESTAR DINHEIRO */}
+      {/* MODAL NOVO / EDITAR EMPRÉSTIMO */}
       {modalEmprestimo && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700 shadow-xl">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Emprestar Dinheiro</h3>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+              {editingDividaId ? 'Editar Empréstimo / Dívida' : 'Emprestar Dinheiro'}
+            </h3>
             <p className="text-xs text-gray-500 mb-4">
-              O valor será debitado do saldo da conta bancária de origem e ingressará no patrimônio como ativo a receber.
+              {editingDividaId 
+                ? 'Atualize os dados deste lançamento de pendência.'
+                : 'O valor será debitado do saldo da conta bancária de origem e ingressará no patrimônio como ativo a receber.'}
             </p>
-            <form onSubmit={handleCriarEmprestimo} className="space-y-3">
+            <form onSubmit={handleSalvarEmprestimo} className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Quem está pegando emprestado? *</label>
                 <select
                   required
+                  disabled={!!editingDividaId}
                   value={formEmprestimo.pessoa_id}
                   onChange={e => setFormEmprestimo({ ...formEmprestimo, pessoa_id: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm disabled:opacity-60"
                 >
                   <option value="">Selecione um contato...</option>
                   {pessoas.map(p => (
@@ -516,14 +814,17 @@ export const SocialPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">De onde saiu o dinheiro? *</label>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {editingDividaId ? 'Conta de Origem' : 'De onde saiu o dinheiro? *'}
+                  </label>
                   <select
-                    required
+                    disabled={!!editingDividaId}
+                    required={!editingDividaId}
                     value={formEmprestimo.conta_origem_id}
                     onChange={e => setFormEmprestimo({ ...formEmprestimo, conta_origem_id: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm disabled:opacity-60"
                   >
-                    <option value="">Selecione a conta...</option>
+                    <option value="">{editingDividaId ? 'Não editável' : 'Selecione a conta...'}</option>
                     {contas.map(c => (
                       <option key={c.id} value={c.id}>{c.apelido} (Saldo: R$ {c.saldo_atual.toFixed(2)})</option>
                     ))}
@@ -564,7 +865,7 @@ export const SocialPage: React.FC = () => {
               <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => setModalEmprestimo(false)}
+                  onClick={() => { setModalEmprestimo(false); setEditingDividaId(null); }}
                   className="px-4 py-2 text-sm rounded-lg border dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100"
                 >
                   Cancelar
@@ -573,7 +874,7 @@ export const SocialPage: React.FC = () => {
                   type="submit"
                   className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
                 >
-                  Confirmar Empréstimo
+                  {editingDividaId ? 'Salvar Alterações' : 'Confirmar Empréstimo'}
                 </button>
               </div>
             </form>
@@ -683,7 +984,7 @@ export const SocialPage: React.FC = () => {
                         <span className="text-xs font-medium text-gray-700 dark:text-gray-300 flex-1 truncate">
                           {part.nome}
                         </span>
-                        <div className="flex items-center gap-1 w-32">
+                        <div className="flex items-center gap-1 w-28">
                           <span className="text-xs text-gray-400">R$</span>
                           <input
                             type="number"
@@ -697,6 +998,14 @@ export const SocialPage: React.FC = () => {
                             className="w-full px-2 py-1 border rounded text-xs text-right dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           />
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAbrirModalQrPix(part.nome, parseFloat(part.valor) || 0, formDivisao.descricao || 'Cota de Despesa')}
+                          title="Gerar QR Code PIX para esta cota"
+                          className="p-1.5 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded transition-colors"
+                        >
+                          <QrCode className="w-4 h-4" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -801,6 +1110,141 @@ export const SocialPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL QR CODE PIX COM SELEÇÃO EXPLÍCITA DE CHAVE */}
+      {modalQrPix.open && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                    Cobrança PIX Instantânea
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Cota de <strong className="text-gray-700 dark:text-gray-300">{modalQrPix.pessoaNome}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalQrPix({ ...modalQrPix, open: false })}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {/* Resumo da Cota */}
+              <div className="p-3 bg-gray-50 dark:bg-gray-750 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block">Motivo / Despesa</span>
+                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{modalQrPix.motivo || 'Divisão'}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block">Valor a Pagar</span>
+                  <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                    R$ {modalQrPix.valor.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Escolha da Chave PIX (Exigência do usuário: Chave de sua escolha!) */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Escolha qual chave PIX deseja usar para receber: *
+                </label>
+                {chavesPix.length === 0 ? (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl text-xs text-amber-800 dark:text-amber-300">
+                    Nenhuma chave PIX cadastrada. Cadastre uma chave no menu <strong>Cobrança PIX</strong> para gerar QR Codes.
+                  </div>
+                ) : (
+                  <select
+                    value={chaveSelecionadaId}
+                    onChange={e => setChaveSelecionadaId(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-sm text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {chavesPix.map(ch => (
+                      <option key={ch.id} value={ch.id}>
+                        {ch.apelido ? `[${ch.apelido}] ` : ''}{ch.tipo.toUpperCase()}: {ch.valor_chave} ({ch.nome_recebedor})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Botão de Gerar */}
+              {!cobrancaGerada && (
+                <button
+                  type="button"
+                  onClick={handleGerarQrPix}
+                  disabled={gerandoPix || chavesPix.length === 0}
+                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 transition-all"
+                >
+                  <QrCode className="w-4 h-4" />
+                  {gerandoPix ? 'Gerando QR Code PIX...' : 'Gerar QR Code com Esta Chave'}
+                </button>
+              )}
+
+              {/* QR Code Gerado & Copia e Cola */}
+              {cobrancaGerada && (
+                <div className="pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                  <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-gray-200 dark:border-gray-700 shadow-inner">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(cobrancaGerada.payload_emv)}`}
+                      alt="QR Code PIX"
+                      className="w-48 h-48 rounded-lg"
+                    />
+                    <span className="text-[11px] text-gray-400 mt-2">Aponte a câmera ou o app do banco</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      Código PIX Copia e Cola
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={cobrancaGerada.payload_emv}
+                        className="w-full px-2.5 py-2 text-xs font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 truncate"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCopiarPix(cobrancaGerada.payload_emv)}
+                        className="shrink-0 flex items-center gap-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-sm"
+                      >
+                        {copiado ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiado ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setCobrancaGerada(null)}
+                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      Trocar Chave PIX
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalQrPix({ ...modalQrPix, open: false })}
+                      className="px-4 py-1.5 text-xs font-medium rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -170,7 +170,7 @@ export class InvestimentosService {
   }
 
   async removerMovimentacao(movimentacaoId: string) {
-    const { rowCount } = await query('DELETE FROM movimentacao_investimento WHERE id = ', [movimentacaoId]);
+    const { rowCount } = await query('DELETE FROM movimentacao_investimento WHERE id = $1', [movimentacaoId]);
     return (rowCount ?? 0) > 0;
   }
 

@@ -11,5 +11,6 @@ export async function pixRoutes(app: FastifyInstance) {
 
   app.get('/cobrancas', (req, rep) => pixController.listarCobrancas(req, rep));
   app.post('/cobrancas', (req, rep) => pixController.criarCobranca(req, rep));
+  app.delete('/cobrancas/:id', (req: any, rep) => pixController.excluirCobranca(req, rep));
   app.post('/cobrancas/:id/confirmar', (req: any, rep) => pixController.confirmarRecebimento(req, rep));
 }

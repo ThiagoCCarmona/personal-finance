@@ -140,6 +140,7 @@ export const api = {
   // Fase 4: Pessoas / Contatos
   getPessoas: () => request<import('../types/index.js').Pessoa[]>('/pessoas'),
   createPessoa: (body: any) => request<import('../types/index.js').Pessoa>('/pessoas', { method: 'POST', body: JSON.stringify(body) }),
+  updatePessoa: (id: string, body: any) => request<import('../types/index.js').Pessoa>(`/pessoas/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deletePessoa: (id: string) => request<any>(`/pessoas/${id}`, { method: 'DELETE' }),
 
   // Fase 4: Dívidas & Empréstimos
@@ -152,12 +153,15 @@ export const api = {
   },
   getResumoDividas: () => request<import('../types/index.js').ResumoDividas>('/dividas/resumo'),
   createEmprestimo: (body: any) => request<import('../types/index.js').Divida>('/dividas/emprestimo', { method: 'POST', body: JSON.stringify(body) }),
+  updateDivida: (id: string, body: any) => request<import('../types/index.js').Divida>(`/dividas/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteDivida: (id: string) => request<any>(`/dividas/${id}`, { method: 'DELETE' }),
   darBaixaDivida: (id: string, body: any) => request<import('../types/index.js').Divida>(`/dividas/${id}/baixa`, { method: 'POST', body: JSON.stringify(body) }),
   perdoarDivida: (id: string) => request<import('../types/index.js').Divida>(`/dividas/${id}/perdoar`, { method: 'POST' }),
 
   // Fase 4: Despesas Compartilhadas
   getDespesasCompartilhadas: () => request<import('../types/index.js').DespesaCompartilhada[]>('/despesas-compartilhadas'),
   createDespesaCompartilhada: (body: any) => request<any>('/despesas-compartilhadas', { method: 'POST', body: JSON.stringify(body) }),
+  deleteDespesaCompartilhada: (id: string) => request<any>(`/despesas-compartilhadas/${id}`, { method: 'DELETE' }),
 
   // Fase 4: PIX
   getChavesPix: () => request<import('../types/index.js').ChavePix[]>('/pix/chaves'),
@@ -166,6 +170,7 @@ export const api = {
   getCobrancasPix: () => request<import('../types/index.js').CobrancaPix[]>('/pix/cobrancas'),
   createCobrancaPix: (body: any) => request<import('../types/index.js').CobrancaPix>('/pix/cobrancas', { method: 'POST', body: JSON.stringify(body) }),
   confirmarCobrancaPix: (id: string, body: { conta_destino_id: string }) => request<any>(`/pix/cobrancas/${id}/confirmar`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteCobrancaPix: (id: string) => request<any>(`/pix/cobrancas/${id}`, { method: 'DELETE' }),
 
   // Fase 5: Simulador de Gastos Multi-Moeda
   simularGastos: (body: any) => request<{ data: import('../types/index.js').ResultadoSimulacaoGasto }>('/simuladores/gastos', { method: 'POST', body: JSON.stringify(body) }),

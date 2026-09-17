@@ -49,18 +49,20 @@ export const SimuladorGastosPage: React.FC = () => {
     }
     try {
       setLoading(true);
-      const res = await api.simularGastos({
+      const res: any = await api.simularGastos({
         descricao: form.descricao,
         valor_original: val,
         moeda_codigo: form.moeda_codigo,
         cotacao_personalizada: form.cotacao_personalizada ? parseFloat(form.cotacao_personalizada) : undefined,
         forma_pagamento: form.forma_pagamento,
-        conta_id: form.forma_pagamento === 'a_vista' ? form.conta_id : undefined,
-        cartao_id: form.forma_pagamento === 'cartao_parcelado' ? form.cartao_id : undefined,
+        conta_id: form.forma_pagamento === 'a_vista' ? (form.conta_id || undefined) : undefined,
+        cartao_id: form.forma_pagamento === 'cartao_parcelado' ? (form.cartao_id || undefined) : undefined,
         num_parcelas: Number(form.num_parcelas) || 1,
         data_prevista: form.data_prevista
       });
-      setResultado(res.data);
+      // Suporta tanto retorno desempacotado quanto { data: ... }
+      const finalResult = res?.data || res;
+      setResultado(finalResult);
     } catch (err: any) {
       alert(err.message || 'Erro ao simular gasto');
     } finally {

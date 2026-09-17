@@ -16,6 +16,12 @@ export class DespesasCompartilhadasController {
     const item = await despesasCompartilhadasService.criar(parse.data);
     return reply.status(201).send(item);
   }
+
+  async excluir(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const ok = await despesasCompartilhadasService.excluir(request.params.id);
+    if (!ok) return reply.status(404).send({ error: 'Despesa compartilhada não encontrada' });
+    return reply.send({ success: true });
+  }
 }
 
 export const despesasCompartilhadasController = new DespesasCompartilhadasController();

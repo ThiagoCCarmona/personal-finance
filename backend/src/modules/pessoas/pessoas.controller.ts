@@ -17,6 +17,19 @@ export class PessoasController {
     return reply.status(201).send(pessoa);
   }
 
+  async atualizar(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const { AtualizarPessoaSchema } = await import('./pessoas.schema.js');
+    const parse = AtualizarPessoaSchema.safeParse(request.body);
+    if (!parse.success) {
+      return reply.status(400).send({ error: parse.error.format() });
+    }
+    const pessoa = await pessoasService.atualizar(request.params.id, parse.data);
+    if (!pessoa) {
+      return reply.status(404).send({ error: 'Contato não encontrado' });
+    }
+    return reply.send(pessoa);
+  }
+
   async excluir(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const { id } = request.params;
     await pessoasService.excluir(id);

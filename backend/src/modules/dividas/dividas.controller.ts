@@ -36,6 +36,23 @@ export class DividasController {
     const divida = await dividasService.perdoar(request.params.id);
     return reply.send(divida);
   }
+
+  async atualizar(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const { AtualizarDividaSchema } = await import('./dividas.schema.js');
+    const parse = AtualizarDividaSchema.safeParse(request.body);
+    if (!parse.success) {
+      return reply.status(400).send({ error: parse.error.format() });
+    }
+    const item = await dividasService.atualizar(request.params.id, parse.data);
+    if (!item) return reply.status(404).send({ error: 'Dívida não encontrada' });
+    return reply.send(item);
+  }
+
+  async excluir(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const ok = await dividasService.excluir(request.params.id);
+    if (!ok) return reply.status(404).send({ error: 'Dívida não encontrada' });
+    return reply.send({ success: true });
+  }
 }
 
 export const dividasController = new DividasController();

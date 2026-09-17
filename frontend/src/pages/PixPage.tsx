@@ -335,6 +335,23 @@ export const PixPage: React.FC = () => {
                           <CheckCircle className="w-4 h-4" />
                         </button>
                       )}
+                      <button
+                        onClick={async () => {
+                          if (confirm('Deseja excluir esta cobrança do histórico?')) {
+                            try {
+                              await api.deleteCobrancaPix(cob.id);
+                              if (cobrancaAtiva?.id === cob.id) setCobrancaAtiva(null);
+                              carregarDados();
+                            } catch (err: any) {
+                              alert(err.message || 'Erro ao excluir cobrança');
+                            }
+                          }
+                        }}
+                        title="Excluir cobrança"
+                        className="p-1 text-gray-400 hover:text-red-500 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))

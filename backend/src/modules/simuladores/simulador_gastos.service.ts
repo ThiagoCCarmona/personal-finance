@@ -78,6 +78,12 @@ export class SimuladorGastosService {
           contaNome = cRes.rows[0].apelido;
           saldoAtual = parseFloat(cRes.rows[0].saldo_atual);
         }
+      } else {
+        const cRes = await query('SELECT apelido, saldo_atual FROM conta WHERE ativo = TRUE ORDER BY criado_em ASC LIMIT 1');
+        if (cRes.rows.length > 0) {
+          contaNome = cRes.rows[0].apelido;
+          saldoAtual = parseFloat(cRes.rows[0].saldo_atual);
+        }
       }
 
       return {

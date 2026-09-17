@@ -7,4 +7,5 @@ export async function despesasCompartilhadasRoutes(app: FastifyInstance) {
 
   app.get('/', (req, rep) => despesasCompartilhadasController.listar(req, rep));
   app.post('/', (req, rep) => despesasCompartilhadasController.criar(req, rep));
+  app.delete('/:id', (req: any, rep) => despesasCompartilhadasController.excluir(req, rep));
 }
