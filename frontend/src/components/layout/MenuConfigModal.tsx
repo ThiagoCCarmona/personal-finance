@@ -7,8 +7,7 @@ import {
   Check, 
   Sliders,
   Eye,
-  EyeOff,
-  Edit3
+  EyeOff
 } from 'lucide-react';
 import { 
   getAllNavItemsForConfig, 

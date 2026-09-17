@@ -447,6 +447,8 @@ export interface MetricasSistema {
 
 export interface ItemDesejoHistoricoPreco {
   id?: string;
+  link_id?: string;
+  link_url?: string;
   data: string;
   preco: number;
   loja?: string;
