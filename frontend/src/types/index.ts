@@ -377,6 +377,8 @@ export interface ChavePix {
   nome_recebedor: string;
   cidade_recebedor: string;
   apelido?: string;
+  conta_id?: string;
+  conta_nome?: string;
   ativo: boolean;
   criado_em: string;
 }

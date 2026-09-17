@@ -72,18 +72,17 @@ export class SimuladorGastosService {
       let contaNome = 'Conta Corrente';
       let saldoAtual = 0;
 
-      if (dados.conta_id) {
+      if (dados.conta_id && dados.conta_id !== 'unificado') {
         const cRes = await query('SELECT apelido, saldo_atual FROM conta WHERE id = $1', [dados.conta_id]);
         if (cRes.rows.length > 0) {
           contaNome = cRes.rows[0].apelido;
           saldoAtual = parseFloat(cRes.rows[0].saldo_atual);
         }
       } else {
-        const cRes = await query('SELECT apelido, saldo_atual FROM conta WHERE ativo = TRUE ORDER BY criado_em ASC LIMIT 1');
-        if (cRes.rows.length > 0) {
-          contaNome = cRes.rows[0].apelido;
-          saldoAtual = parseFloat(cRes.rows[0].saldo_atual);
-        }
+        // Saldo Consolidado Unificado (Todas as contas ativas)
+        const sRes = await query('SELECT COALESCE(SUM(saldo_atual), 0) AS saldo_total FROM conta WHERE ativo = TRUE');
+        saldoAtual = parseFloat(sRes.rows[0]?.saldo_total || '0');
+        contaNome = 'Saldo Consolidado (Todas as Contas)';
       }
 
       return {

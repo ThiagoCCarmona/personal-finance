@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { QrCode, Copy, Check, Plus, Trash2, CheckCircle, Key, RefreshCw } from 'lucide-react';
+import { QrCode, Copy, Check, Plus, Trash2, CheckCircle, Key, RefreshCw, Landmark } from 'lucide-react';
 import { api } from '../services/api';
 import { ChavePix, CobrancaPix, Divida, Conta } from '../types';
 import { PrivacyValue } from '../components/common/PrivacyValue';
@@ -23,7 +23,8 @@ export const PixPage: React.FC = () => {
     valor_chave: '',
     nome_recebedor: '',
     cidade_recebedor: 'SAO PAULO',
-    apelido: ''
+    apelido: '',
+    conta_id: ''
   });
 
   // Form Cobrança
@@ -68,7 +69,8 @@ export const PixPage: React.FC = () => {
         valor_chave: '',
         nome_recebedor: '',
         cidade_recebedor: 'SAO PAULO',
-        apelido: ''
+        apelido: '',
+        conta_id: ''
       });
       carregarDados();
     } catch (err: any) {
@@ -204,11 +206,18 @@ export const PixPage: React.FC = () => {
                     {ch.nome_recebedor} • {ch.cidade_recebedor}
                   </div>
                 </div>
-                {ch.apelido && (
-                  <span className="text-xs text-indigo-500 font-medium mt-2 block">
-                    {ch.apelido}
-                  </span>
-                )}
+                <div className="mt-2 space-y-1">
+                  {ch.conta_nome && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded">
+                      <Landmark className="w-3 h-3" /> Conta: {ch.conta_nome}
+                    </span>
+                  )}
+                  {ch.apelido && (
+                    <span className="text-xs text-indigo-500 font-medium block">
+                      {ch.apelido}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -421,10 +430,29 @@ export const PixPage: React.FC = () => {
                     type="text"
                     value={formChave.apelido}
                     onChange={e => setFormChave({ ...formChave, apelido: e.target.value })}
-                    placeholder="Ex: Nubank"
+                    placeholder="Ex: Nubank Principal"
                     className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Conta Bancária Vinculada (onde o dinheiro cai)
+                </label>
+                <select
+                  value={formChave.conta_id}
+                  onChange={e => setFormChave({ ...formChave, conta_id: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                >
+                  <option value="">Selecione uma conta...</option>
+                  {contas.map(c => (
+                    <option key={c.id} value={c.id}>{c.apelido} ({c.instituicao_nome || 'Banco'})</option>
+                  ))}
+                </select>
+                <span className="text-[11px] text-gray-400 mt-0.5 block">
+                  Ao confirmar cobranças desta chave, os valores serão creditados nesta conta.
+                </span>
               </div>
               <div className="flex justify-end gap-2 pt-3">
                 <button

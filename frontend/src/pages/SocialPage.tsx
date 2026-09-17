@@ -1172,7 +1172,7 @@ export const SocialPage: React.FC = () => {
                   >
                     {chavesPix.map(ch => (
                       <option key={ch.id} value={ch.id}>
-                        {ch.apelido ? `[${ch.apelido}] ` : ''}{ch.tipo.toUpperCase()}: {ch.valor_chave} ({ch.nome_recebedor})
+                        {ch.apelido ? `[${ch.apelido}] ` : ''}{ch.tipo.toUpperCase()}: {ch.valor_chave} {ch.conta_nome ? `— Destino: ${ch.conta_nome}` : `(${ch.nome_recebedor})`}
                       </option>
                     ))}
                   </select>

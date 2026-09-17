@@ -5,7 +5,8 @@ export const CriarChavePixSchema = z.object({
   valor_chave: z.string().min(3, 'Chave PIX inválida'),
   nome_recebedor: z.string().min(2, 'Nome do recebedor deve ter pelo menos 2 caracteres'),
   cidade_recebedor: z.string().min(2, 'Cidade do recebedor deve ter pelo menos 2 caracteres'),
-  apelido: z.string().optional()
+  apelido: z.string().optional(),
+  conta_id: z.preprocess(val => (val === '' || val === null ? undefined : val), z.string().uuid().optional())
 });
 
 export const CriarCobrancaPixSchema = z.object({
@@ -18,7 +19,7 @@ export const CriarCobrancaPixSchema = z.object({
 });
 
 export const ConfirmarCobrancaPixSchema = z.object({
-  conta_destino_id: z.string().uuid('Selecione a conta bancária para crédito')
+  conta_destino_id: z.preprocess(val => (val === '' || val === null ? undefined : val), z.string().uuid().optional())
 });
 
 export type CriarChavePixInput = z.infer<typeof CriarChavePixSchema>;

@@ -10,6 +10,8 @@ export interface ChavePix {
   nome_recebedor: string;
   cidade_recebedor: string;
   apelido?: string;
+  conta_id?: string;
+  conta_nome?: string;
   ativo: boolean;
   criado_em: string;
 }
@@ -34,16 +36,24 @@ export interface CobrancaPixItem {
 
 export class PixService {
   async listarChaves(): Promise<ChavePix[]> {
-    const res = await query<ChavePix>('SELECT * FROM chave_pix WHERE ativo = TRUE ORDER BY criado_em ASC');
+    const res = await query<ChavePix>(`
+      SELECT 
+        cp.*,
+        c.apelido AS conta_nome
+      FROM chave_pix cp
+      LEFT JOIN conta c ON c.id = cp.conta_id
+      WHERE cp.ativo = TRUE 
+      ORDER BY cp.criado_em ASC
+    `);
     return res.rows;
   }
 
   async criarChave(dados: CriarChavePixInput): Promise<ChavePix> {
     const res = await query<ChavePix>(`
-      INSERT INTO chave_pix (tipo, valor_chave, nome_recebedor, cidade_recebedor, apelido)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO chave_pix (tipo, valor_chave, nome_recebedor, cidade_recebedor, apelido, conta_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
-    `, [dados.tipo, dados.valor_chave.trim(), dados.nome_recebedor.trim(), dados.cidade_recebedor.trim(), dados.apelido || null]);
+    `, [dados.tipo, dados.valor_chave.trim(), dados.nome_recebedor.trim(), dados.cidade_recebedor.trim(), dados.apelido || null, dados.conta_id || null]);
     return res.rows[0];
   }
 
@@ -133,6 +143,21 @@ export class PixService {
         throw new Error('Esta cobrança já foi confirmada anteriormente');
       }
 
+      // Resolve conta de destino (da chave vinculada ou padrão)
+      let contaDestinoId = dados.conta_destino_id;
+      if (!contaDestinoId) {
+        const cpRes = await client.query('SELECT conta_id FROM chave_pix WHERE id = $1', [cob.chave_pix_id]);
+        if (cpRes.rows.length > 0 && cpRes.rows[0].conta_id) {
+          contaDestinoId = cpRes.rows[0].conta_id;
+        } else {
+          const cFirst = await client.query('SELECT id FROM conta WHERE ativo = TRUE ORDER BY criado_em ASC LIMIT 1');
+          if (cFirst.rows.length > 0) contaDestinoId = cFirst.rows[0].id;
+        }
+      }
+      if (!contaDestinoId) {
+        throw new Error('Nenhuma conta bancária encontrada para receber o PIX');
+      }
+
       // 1. Marca cobrança como recebida
       await client.query(`
         UPDATE cobranca_pix 
@@ -144,12 +169,12 @@ export class PixService {
       if (cob.divida_id) {
         await dividasService.darBaixa(cob.divida_id, {
           valor: parseFloat(cob.valor),
-          conta_destino_id: dados.conta_destino_id,
+          conta_destino_id: contaDestinoId,
           forma_pagamento: 'pix'
         });
       } else {
         // Se cobrança avulsa, gera receita na conta destino
-        const contaRes = await client.query('SELECT moeda_id FROM conta WHERE id = $1', [dados.conta_destino_id]);
+        const contaRes = await client.query('SELECT moeda_id FROM conta WHERE id = $1', [contaDestinoId]);
         if (contaRes.rows.length > 0) {
           const moedaId = contaRes.rows[0].moeda_id;
           let catRes = await client.query("SELECT id FROM categoria WHERE nome = 'Outras Receitas' LIMIT 1");

@@ -48,6 +48,17 @@ export class DespesasCompartilhadasService {
         const cRes = await client.query('SELECT moeda_id FROM conta WHERE id = $1', [dados.conta_origem_id]);
         if (cRes.rows.length > 0) {
           const moedaId = cRes.rows[0].moeda_id;
+          let categoriaId = dados.categoria_id;
+          if (!categoriaId) {
+            const catRes = await client.query("SELECT id FROM categoria WHERE tipo = 'despesa' ORDER BY criado_em ASC LIMIT 1");
+            if (catRes.rows.length > 0) {
+              categoriaId = catRes.rows[0].id;
+            } else {
+              const novaCat = await client.query("INSERT INTO categoria (nome, tipo, icone, cor) VALUES ('Outros Gastos', 'despesa', 'MoreHorizontal', '#6B7280') RETURNING id");
+              categoriaId = novaCat.rows[0].id;
+            }
+          }
+
           await client.query(`
             INSERT INTO lancamento (
               tipo, valor, moeda_id, data_compra, forma_pagamento, 
@@ -59,7 +70,7 @@ export class DespesasCompartilhadasService {
             moedaId,
             dados.data || null,
             dados.conta_origem_id,
-            dados.categoria_id || null,
+            categoriaId,
             `Despesa compartilhada: ${dados.descricao}`
           ]);
 

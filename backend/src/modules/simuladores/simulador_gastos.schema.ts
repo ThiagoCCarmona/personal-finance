@@ -6,7 +6,7 @@ export const SimularGastoSchema = z.object({
   moeda_codigo: z.preprocess(val => (val === '' || val === null || val === undefined ? 'BRL' : val), z.string().default('BRL')),
   cotacao_personalizada: z.preprocess(val => (val === '' || val === null ? undefined : Number(val)), z.number().positive().optional()),
   forma_pagamento: z.enum(['a_vista', 'cartao_parcelado']),
-  conta_id: z.preprocess(val => (val === '' || val === null ? undefined : val), z.string().uuid().optional()),
+  conta_id: z.preprocess(val => (val === '' || val === null ? undefined : val), z.string().optional()),
   cartao_id: z.preprocess(val => (val === '' || val === null ? undefined : val), z.string().uuid().optional()),
   categoria_id: z.preprocess(val => (val === '' || val === null ? undefined : val), z.string().uuid().optional()),
   num_parcelas: z.preprocess(val => (val === '' || val === null || val === undefined ? 1 : Number(val)), z.number().int().min(1).max(36).default(1)),

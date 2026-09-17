@@ -31,7 +31,7 @@ export const SimuladorGastosPage: React.FC = () => {
         ]);
         setContas(cRes);
         setCartoes(crtRes);
-        if (cRes.length > 0) setForm(prev => ({ ...prev, conta_id: cRes[0].id }));
+        setForm(prev => ({ ...prev, conta_id: 'unificado' }));
         if (crtRes.length > 0) setForm(prev => ({ ...prev, cartao_id: crtRes[0].id }));
       } catch (err) {
         console.error('Erro ao carregar dados:', err);
@@ -178,12 +178,15 @@ export const SimuladorGastosPage: React.FC = () => {
 
             {form.forma_pagamento === 'a_vista' ? (
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Conta Bancária</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Conta Bancária / Origem</label>
                 <select
-                  value={form.conta_id}
+                  value={form.conta_id || 'unificado'}
                   onChange={e => setForm({ ...form, conta_id: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
                 >
+                  <option value="unificado">
+                    🌐 Saldo Unificado (Todas as Contas — R$ {contas.reduce((acc, c) => acc + Number(c.saldo_atual || 0), 0).toFixed(2)})
+                  </option>
                   {contas.map(c => (
                     <option key={c.id} value={c.id}>{c.apelido} (Saldo: R$ {Number(c.saldo_atual || 0).toFixed(2)})</option>
                   ))}
