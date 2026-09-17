@@ -105,21 +105,31 @@ export const PixPage: React.FC = () => {
     setTimeout(() => setCopiadoId(null), 2500);
   };
 
-  const handleConfirmarRecebimento = async (cobranca: CobrancaPix) => {
-    const contaId = contas[0]?.id;
-    if (!contaId) {
-      alert('Cadastre uma conta antes de confirmar');
-      return;
-    }
-    if (!confirm(`Confirmar recebimento de R$ ${cobranca.valor.toFixed(2)}? Caso esteja vinculada a uma dívida, a mesma será quitada automaticamente.`)) {
+  // Confirmação de recebimento
+  const [cobrancaParaConfirmar, setCobrancaParaConfirmar] = useState<CobrancaPix | null>(null);
+  const [contaDestinoConfirmacao, setContaDestinoConfirmacao] = useState<string>('');
+
+  const handleAbrirConfirmacao = (cob: CobrancaPix) => {
+    const chave = chaves.find(c => c.id === cob.chave_pix_id);
+    const contaPadrao = chave?.conta_id || contas[0]?.id || '';
+    setContaDestinoConfirmacao(contaPadrao);
+    setCobrancaParaConfirmar(cob);
+  };
+
+  const handleConfirmarRecebimento = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cobrancaParaConfirmar) return;
+    if (!contaDestinoConfirmacao) {
+      alert('Selecione uma conta bancária para receber o PIX');
       return;
     }
     try {
-      await api.confirmarCobrancaPix(cobranca.id, { conta_destino_id: contaId });
-      carregarDados();
-      if (cobrancaAtiva?.id === cobranca.id) {
+      await api.confirmarCobrancaPix(cobrancaParaConfirmar.id, { conta_destino_id: contaDestinoConfirmacao });
+      if (cobrancaAtiva?.id === cobrancaParaConfirmar.id) {
         setCobrancaAtiva(null);
       }
+      setCobrancaParaConfirmar(null);
+      carregarDados();
     } catch (err: any) {
       alert(err.message || 'Erro ao confirmar cobrança');
     }
@@ -252,7 +262,7 @@ export const PixPage: React.FC = () => {
                 {copiadoId === cobrancaAtiva.id ? 'Código Copiado!' : 'Copiar Código PIX'}
               </button>
               <button
-                onClick={() => handleConfirmarRecebimento(cobrancaAtiva)}
+                onClick={() => handleAbrirConfirmacao(cobrancaAtiva)}
                 className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 border border-emerald-600 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-sm font-semibold rounded-lg"
               >
                 <CheckCircle className="w-4 h-4" />
@@ -337,7 +347,7 @@ export const PixPage: React.FC = () => {
                       </button>
                       {cob.status === 'aguardando_confirmacao' && (
                         <button
-                          onClick={() => handleConfirmarRecebimento(cob)}
+                          onClick={() => handleAbrirConfirmacao(cob)}
                           title="Confirmar Recebimento"
                           className="p-1 text-gray-500 hover:text-emerald-600 rounded"
                         >
@@ -557,6 +567,62 @@ export const PixPage: React.FC = () => {
                   className="px-4 py-2 text-sm rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
                 >
                   Gerar QR Code & Copia-e-Cola
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmar Recebimento com Conta de Destino */}
+      {cobrancaParaConfirmar && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-emerald-500" />
+              Confirmar Recebimento do PIX
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+              O valor de <strong>R$ {cobrancaParaConfirmar.valor.toFixed(2)}</strong> será creditado imediatamente no saldo da conta selecionada abaixo e contabilizado como receita recebida.
+            </p>
+
+            <form onSubmit={handleConfirmarRecebimento} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Conta Bancária de Destino *
+                </label>
+                <select
+                  required
+                  value={contaDestinoConfirmacao}
+                  onChange={e => setContaDestinoConfirmacao(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                >
+                  <option value="">Selecione uma conta...</option>
+                  {contas.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome} ({c.instituicao_nome || 'Conta'}) — Saldo atual: R$ {Number(c.saldo_atual || 0).toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Se a chave já estiver vinculada a uma conta, ela vem selecionada por padrão.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCobrancaParaConfirmar(null)}
+                  className="px-4 py-2 text-sm rounded-lg border dark:border-gray-600 text-gray-600 dark:text-gray-300"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium flex items-center gap-1.5"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Confirmar e Creditar Saldo
                 </button>
               </div>
             </form>

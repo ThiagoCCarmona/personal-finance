@@ -27,6 +27,8 @@ import { pixRoutes } from './modules/pix/pix.routes.js';
 import { relatoriosRoutes } from './modules/relatorios/relatorios.routes.js';
 import { sistemaRoutes } from './modules/sistema/sistema.routes.js';
 import { moedasRoutes } from './modules/moedas/moedas.routes.js';
+import { listaDesejoRoutes } from './modules/lista_desejo/lista_desejo.routes.js';
+import { PtaxClient } from './modules/cambio/ptax-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,6 +89,7 @@ export async function buildApp() {
   await app.register(relatoriosRoutes, { prefix: '/api/relatorios' });
   await app.register(sistemaRoutes, { prefix: '/api/sistema' });
   await app.register(moedasRoutes, { prefix: '/api/moedas' });
+  await app.register(listaDesejoRoutes, { prefix: '/api/lista-desejo' });
 
   // Servir frontend compilado estaticamente em produção se existir
   const candidatePaths = [
@@ -128,6 +131,14 @@ async function start() {
     const app = await buildApp();
     await app.listen({ port: env.PORT, host: env.HOST });
     console.log(`\n🚀 Servidor backend rodando em http://${env.HOST}:${env.PORT}`);
+
+    // Sincronização periódica de cotações via AwesomeAPI (hora em hora)
+    const ptaxClient = new PtaxClient();
+    ptaxClient.sincronizarCotacoesRecentes().catch(err => console.error('Erro na sincronização inicial de câmbio:', err));
+    setInterval(() => {
+      console.log('🔄 Sincronizando cotações horárias com AwesomeAPI...');
+      ptaxClient.sincronizarCotacoesRecentes().catch(err => console.error('Erro na sincronização periódica de câmbio:', err));
+    }, 60 * 60 * 1000);
   } catch (err) {
     console.error('Erro ao iniciar o servidor:', err);
     process.exit(1);

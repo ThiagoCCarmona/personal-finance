@@ -191,15 +191,30 @@ export const api = {
     const qs = q.toString();
     return request<any>(`/relatorios/dashboard${qs ? `?${qs}` : ''}`);
   },
-  getUrlCsvLancamentos: (dataInicio?: string, dataFim?: string, contaId?: string) => {
+  // Instituições CRUD
+  createInstituicao: (body: any) => request<import('../types/index.js').Instituicao>('/instituicoes', { method: 'POST', body: JSON.stringify(body) }),
+  updateInstituicao: (id: string, body: any) => request<import('../types/index.js').Instituicao>(`/instituicoes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteInstituicao: (id: string) => request<any>(`/instituicoes/${id}`, { method: 'DELETE' }),
+
+  // Câmbio AwesomeAPI & Conversor
+  getMoedasCambio: () => request<Array<{ id: string; codigo: string; nome: string; simbolo: string; favorita: boolean; ultima_cotacao_brl?: number }>>('/cambio/moedas'),
+  toggleFavoritaCambio: (codigo: string) => request<any>(`/cambio/moedas/${codigo}/favorita`, { method: 'PUT' }),
+  converterMoeda: (de: string, para: string, valor: number) => 
+    request<{ de: string; para: string; valor_origem: number; cotacao: number; valor_convertido: number }>(`/cambio/converter?de=${de}&para=${para}&valor=${valor}`),
+
+  // Lista de Desejos (Wishlist)
+  getItensDesejo: (params?: { status?: string; prioridade?: string; busca?: string }) => {
     const q = new URLSearchParams();
-    if (dataInicio) q.append('data_inicio', dataInicio);
-    if (dataFim) q.append('data_fim', dataFim);
-    if (contaId) q.append('conta_id', contaId);
+    if (params?.status) q.append('status', params.status);
+    if (params?.prioridade) q.append('prioridade', params.prioridade);
+    if (params?.busca) q.append('busca', params.busca);
     const qs = q.toString();
-    return `${BASE_URL}/relatorios/lancamentos/csv${qs ? `?${qs}` : ''}`;
+    return request<import('../types/index.js').ItemDesejo[]>(`/lista-desejo${qs ? `?${qs}` : ''}`);
   },
-  getUrlCsvPatrimonio: () => `${BASE_URL}/relatorios/patrimonio/csv`,
+  createItemDesejo: (body: any) => request<import('../types/index.js').ItemDesejo>('/lista-desejo', { method: 'POST', body: JSON.stringify(body) }),
+  updateItemDesejo: (id: string, body: any) => request<import('../types/index.js').ItemDesejo>(`/lista-desejo/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteItemDesejo: (id: string) => request<any>(`/lista-desejo/${id}`, { method: 'DELETE' }),
+  comprarItemDesejo: (id: string, body?: any) => request<import('../types/index.js').ItemDesejo>(`/lista-desejo/${id}/comprar`, { method: 'POST', body: JSON.stringify(body || {}) }),
 };
 
 

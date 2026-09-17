@@ -38,8 +38,20 @@ export class CambioService {
     ultima_cotacao: number;
     variacao_periodo_pct: number;
   }> {
-    const sql = ['SELECT c.data::text, c.valor_ptax::float as valor', 'FROM cotacao_cambio c', 'JOIN moeda m ON m.id = c.moeda_id', 'WHERE m.codigo = $1', 'ORDER BY c.data DESC', 'LIMIT $2'].join(' ');
-    const { rows } = await query(sql, [moedaCodigo.toUpperCase(), dias + 30]);
+    const cod = moedaCodigo.toUpperCase();
+
+    // Garante histórico atualizado da AwesomeAPI para o período
+    await this.ptaxClient.buscarHistoricoDiarioAwesome(cod, Math.min(365, Math.max(dias, 30)));
+
+    const sql = [
+      'SELECT c.data::text, c.valor_ptax::float as valor',
+      'FROM cotacao_cambio c',
+      'JOIN moeda m ON m.id = c.moeda_id',
+      'WHERE m.codigo = $1',
+      'ORDER BY c.data DESC',
+      'LIMIT $2'
+    ].join(' ');
+    const { rows } = await query(sql, [cod, dias + 30]);
 
     const cronologico = rows.reverse();
 
@@ -92,11 +104,83 @@ export class CambioService {
     const variacaoPeriodo = primeira > 0 ? Number((((ultima - primeira) / primeira) * 100).toFixed(2)) : 0;
 
     return {
-      moeda: moedaCodigo.toUpperCase(),
+      moeda: cod,
       pontos: pontosFiltrados,
       volatilidade_30d: volatilidade,
       ultima_cotacao: ultima,
       variacao_periodo_pct: variacaoPeriodo,
+    };
+  }
+
+  async listarMoedasComCotacao() {
+    const { rows: moedas } = await query(`
+      SELECT 
+        m.id, 
+        m.codigo, 
+        m.nome, 
+        m.simbolo, 
+        m.ativo, 
+        COALESCE(m.favorita, FALSE) AS favorita,
+        (
+          SELECT c.valor_ptax::float 
+          FROM cotacao_cambio c 
+          WHERE c.moeda_id = m.id 
+          ORDER BY c.data DESC 
+          LIMIT 1
+        ) as ultima_cotacao_brl
+      FROM moeda m
+      WHERE m.ativo = TRUE
+      ORDER BY m.favorita DESC, m.codigo ASC
+    `);
+    return moedas;
+  }
+
+  async toggleFavorita(codigo: string) {
+    const cod = codigo.toUpperCase();
+    const res = await query(
+      `UPDATE moeda SET favorita = NOT COALESCE(favorita, FALSE) WHERE codigo = $1 RETURNING id, codigo, favorita`,
+      [cod]
+    );
+    return res.rows[0] || null;
+  }
+
+  async converterMoeda(de: string, para: string, valor: number) {
+    const orig = de.toUpperCase();
+    const dest = para.toUpperCase();
+    const v = Math.max(0, valor || 0);
+
+    if (orig === dest) {
+      return { de: orig, para: dest, valor_origem: v, cotacao: 1, valor_convertido: v };
+    }
+
+    // 1. Tenta cotação direta
+    let cotacao = await this.ptaxClient.buscarCotacaoAtual(orig, dest);
+
+    // 2. Se não achou e envolve BRL como ponte
+    if (!cotacao) {
+      if (orig === 'BRL') {
+        const cotDest = await this.ptaxClient.buscarCotacaoAtual(dest, 'BRL');
+        if (cotDest && cotDest > 0) cotacao = 1 / cotDest;
+      } else if (dest === 'BRL') {
+        cotacao = await this.ptaxClient.buscarCotacaoAtual(orig, 'BRL');
+      } else {
+        const cotOrigBRL = await this.ptaxClient.buscarCotacaoAtual(orig, 'BRL');
+        const cotDestBRL = await this.ptaxClient.buscarCotacaoAtual(dest, 'BRL');
+        if (cotOrigBRL && cotDestBRL && cotDestBRL > 0) {
+          cotacao = cotOrigBRL / cotDestBRL;
+        }
+      }
+    }
+
+    const taxaFinal = cotacao || 1;
+    const valorConvertido = Math.round(v * taxaFinal * 10000) / 10000;
+
+    return {
+      de: orig,
+      para: dest,
+      valor_origem: v,
+      cotacao: Number(taxaFinal.toFixed(4)),
+      valor_convertido: valorConvertido
     };
   }
 

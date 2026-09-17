@@ -19,6 +19,7 @@ import { PixPage } from './pages/PixPage.js';
 import { SimuladorGastosPage } from './pages/SimuladorGastosPage.js';
 import { RelatoriosPage } from './pages/RelatoriosPage.js';
 import { ConfiguracoesPage } from './pages/ConfiguracoesPage.js';
+import { ListaDesejosPage } from './pages/ListaDesejosPage.js';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading, setupRequired } = useAuth();
@@ -74,6 +75,7 @@ export const App: React.FC = () => {
               <Route path="simulador" element={<SimuladorPage />} />
               <Route path="simulador-gastos" element={<SimuladorGastosPage />} />
               <Route path="relatorios" element={<RelatoriosPage />} />
+              <Route path="desejos" element={<ListaDesejosPage />} />
               <Route path="configuracoes" element={<ConfiguracoesPage />} />
               <Route path="contas" element={<ContasPage />} />
               <Route path="categorias" element={<CategoriasPage />} />

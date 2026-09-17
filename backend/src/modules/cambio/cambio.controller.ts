@@ -25,7 +25,28 @@ export class CambioController {
 
   async sincronizar(request: FastifyRequest, reply: FastifyReply) {
     await service.sincronizar();
-    return reply.send({ message: 'Sincronização PTAX executada com sucesso' });
+    return reply.send({ message: 'Sincronização de Câmbio executada com sucesso' });
+  }
+
+  async listarMoedas(request: FastifyRequest, reply: FastifyReply) {
+    const moedas = await service.listarMoedasComCotacao();
+    return reply.send(moedas);
+  }
+
+  async toggleFavorita(request: FastifyRequest<{ Params: { codigo: string } }>, reply: FastifyReply) {
+    const res = await service.toggleFavorita(request.params.codigo);
+    if (!res) {
+      return reply.status(404).send({ error: 'Moeda não encontrada' });
+    }
+    return reply.send(res);
+  }
+
+  async converter(request: FastifyRequest<{ Querystring: { de?: string; para?: string; valor?: string } }>, reply: FastifyReply) {
+    const de = request.query.de || 'USD';
+    const para = request.query.para || 'BRL';
+    const valor = parseFloat(request.query.valor || '1');
+    const resultado = await service.converterMoeda(de, para, valor);
+    return reply.send(resultado);
   }
 
   async calcularGanho(request: FastifyRequest, reply: FastifyReply) {

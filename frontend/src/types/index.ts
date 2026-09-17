@@ -444,5 +444,23 @@ export interface MetricasSistema {
   data_hora_servidor: string;
 }
 
+export interface ItemDesejo {
+  id: string;
+  nome: string;
+  link: string | null;
+  preco_estimado: number;
+  prioridade: 'baixa' | 'media' | 'alta' | 'urgente';
+  categoria_id: string | null;
+  categoria_nome?: string | null;
+  categoria_cor?: string | null;
+  tipo_gasto: 'essencial' | 'pessoal' | 'desejo' | 'investimento_pessoal' | 'eletronico' | 'casa';
+  status: 'planejado' | 'comprado' | 'descartado';
+  observacoes: string | null;
+  data_alvo: string | null;
+  comprado_em: string | null;
+  criado_em: string;
+  atualizado_em: string;
+}
+
 
 

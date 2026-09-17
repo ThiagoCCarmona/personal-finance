@@ -22,6 +22,7 @@ export const ContasPage: React.FC = () => {
   const [contaSaldoInicial, setContaSaldoInicial] = useState('0');
 
   // Form Instituição
+  const [editingInst, setEditingInst] = useState<Instituicao | null>(null);
   const [instNome, setInstNome] = useState('');
   const [instTipo, setInstTipo] = useState<'banco' | 'carteira_digital' | 'dinheiro'>('banco');
   const [instCor, setInstCor] = useState('#3B82F6');
@@ -111,6 +112,50 @@ export const ContasPage: React.FC = () => {
     }
   };
 
+  const handleOpenInstModal = () => {
+    setFormError(null);
+    setEditingInst(null);
+    setInstNome('');
+    setInstTipo('banco');
+    setInstCor('#3B82F6');
+    setIsInstModalOpen(true);
+  };
+
+  const handleEditInstituicao = (inst: Instituicao) => {
+    setFormError(null);
+    setEditingInst(inst);
+    setInstNome(inst.nome);
+    setInstTipo(inst.tipo);
+    setInstCor(inst.cor || '#3B82F6');
+  };
+
+  const handleCancelEditInst = () => {
+    setEditingInst(null);
+    setInstNome('');
+    setInstTipo('banco');
+    setInstCor('#3B82F6');
+  };
+
+  const handleDeleteInstituicao = async (id: string, nome: string) => {
+    const contasVinculadas = contas.filter(c => c.instituicao_id === id);
+    if (contasVinculadas.length > 0) {
+      alert(`Não é possível excluir "${nome}" porque existem ${contasVinculadas.length} conta(s) vinculadas a ela. Reatribua ou exclua as contas primeiro.`);
+      return;
+    }
+
+    if (!window.confirm(`Deseja realmente excluir a instituição "${nome}"?`)) return;
+
+    try {
+      await api.deleteInstituicao(id);
+      if (editingInst?.id === id) {
+        handleCancelEditInst();
+      }
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir instituição.');
+    }
+  };
+
   const handleSaveInstituicao = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -121,16 +166,23 @@ export const ContasPage: React.FC = () => {
     }
 
     try {
-      await api.createInstituicao({
-        nome: instNome.trim(),
-        tipo: instTipo,
-        cor: instCor,
-      });
-      setIsInstModalOpen(false);
-      setInstNome('');
+      if (editingInst) {
+        await api.updateInstituicao(editingInst.id, {
+          nome: instNome.trim(),
+          tipo: instTipo,
+          cor: instCor,
+        });
+      } else {
+        await api.createInstituicao({
+          nome: instNome.trim(),
+          tipo: instTipo,
+          cor: instCor,
+        });
+      }
+      handleCancelEditInst();
       loadData();
     } catch (err: any) {
-      setFormError(err.message || 'Falha ao criar instituição.');
+      setFormError(err.message || 'Falha ao salvar instituição.');
     }
   };
 
@@ -144,11 +196,11 @@ export const ContasPage: React.FC = () => {
 
         <div className="flex items-center gap-2.5 self-start sm:self-auto">
           <button
-            onClick={() => setIsInstModalOpen(true)}
+            onClick={handleOpenInstModal}
             className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold border border-slate-700 transition-all"
           >
             <Landmark size={17} />
-            <span>Nova Instituição</span>
+            <span>Gerenciar Instituições</span>
           </button>
           <button
             onClick={() => handleOpenContaModal()}
@@ -323,73 +375,155 @@ export const ContasPage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Modal de Instituição */}
+      {/* Modal de Gestão Completa de Instituições */}
       <Modal
         isOpen={isInstModalOpen}
-        onClose={() => setIsInstModalOpen(false)}
-        title="Nova Instituição Bancária"
+        onClose={() => {
+          setIsInstModalOpen(false);
+          handleCancelEditInst();
+        }}
+        title="Gerenciar Instituições Bancárias"
       >
-        <form onSubmit={handleSaveInstituicao} className="space-y-4">
+        <div className="space-y-6">
           {formError && (
             <div className="p-3 text-sm text-rose-300 bg-rose-950/40 border border-rose-800/60 rounded-xl">
               {formError}
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Nome da Instituição *</label>
-            <input
-              type="text"
-              required
-              placeholder="Ex: Nubank, Itaú, Dinheiro Físico..."
-              value={instNome}
-              onChange={(e) => setInstNome(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          {/* Formulário de Cadastro / Edição */}
+          <form onSubmit={handleSaveInstituicao} className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                {editingInst ? `Editar: ${editingInst.nome}` : 'Cadastrar Nova Instituição'}
+              </span>
+              {editingInst && (
+                <button
+                  type="button"
+                  onClick={handleCancelEditInst}
+                  className="text-xs text-slate-400 hover:text-slate-200 underline"
+                >
+                  Cancelar Edição
+                </button>
+              )}
+            </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Tipo de Instituição *</label>
-            <select
-              value={instTipo}
-              onChange={(e) => setInstTipo(e.target.value as any)}
-              className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="banco">Banco Tradicional / Digital</option>
-              <option value="carteira_digital">Carteira Digital (PayPal, PicPay)</option>
-              <option value="dinheiro">Dinheiro em Espécie</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Cor de Identificação</label>
-            <div className="flex items-center gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Nome da Instituição *</label>
               <input
-                type="color"
-                value={instCor}
-                onChange={(e) => setInstCor(e.target.value)}
-                className="w-10 h-10 rounded-xl bg-transparent cursor-pointer"
+                type="text"
+                required
+                placeholder="Ex: Nubank, Itaú, Dinheiro Físico..."
+                value={instNome}
+                onChange={(e) => setInstNome(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <span className="text-xs font-mono text-slate-400">{instCor}</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Tipo de Instituição *</label>
+                <select
+                  value={instTipo}
+                  onChange={(e) => setInstTipo(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="banco">Banco Tradicional / Digital</option>
+                  <option value="carteira_digital">Carteira Digital</option>
+                  <option value="dinheiro">Dinheiro em Espécie</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Cor</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={instCor}
+                    onChange={(e) => setInstCor(e.target.value)}
+                    className="w-8 h-8 rounded-lg bg-transparent cursor-pointer"
+                  />
+                  <span className="text-xs font-mono text-slate-400">{instCor}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                type="submit"
+                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-md transition"
+              >
+                {editingInst ? 'Atualizar Instituição' : 'Adicionar Instituição'}
+              </button>
+            </div>
+          </form>
+
+          {/* Lista de Instituições Existentes */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Instituições Ativas ({instituicoes.length})
+            </h4>
+
+            <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+              {instituicoes.map((inst) => {
+                const totalContas = contas.filter(c => c.instituicao_id === inst.id).length;
+                return (
+                  <div
+                    key={inst.id}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/80 hover:border-slate-700 transition"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className="w-4 h-4 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: inst.cor || '#3b82f6' }}
+                      />
+                      <div>
+                        <span className="text-sm font-semibold text-slate-200 block leading-tight">
+                          {inst.nome}
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          {inst.tipo.replace('_', ' ')} • {totalContas} conta(s) vinculada(s)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleEditInstituicao(inst)}
+                        className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition"
+                        title="Editar Instituição"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteInstituicao(inst.id, inst.nome)}
+                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition"
+                        title="Excluir Instituição"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          <div className="pt-2 flex justify-end gap-3">
+          <div className="pt-2 border-t border-slate-800 flex justify-end">
             <button
               type="button"
-              onClick={() => setIsInstModalOpen(false)}
-              className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl"
+              onClick={() => {
+                setIsInstModalOpen(false);
+                handleCancelEditInst();
+              }}
+              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 rounded-xl transition"
             >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/30"
-            >
-              Salvar Instituição
+              Fechar
             </button>
           </div>
-        </form>
+        </div>
       </Modal>
     </div>
   );

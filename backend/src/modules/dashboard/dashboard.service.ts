@@ -172,7 +172,7 @@ export class DashboardService {
        JOIN categoria cat ON cat.id = r.categoria_id
        LEFT JOIN conta c ON c.id = r.conta_id
        LEFT JOIN cartao_credito card ON card.id = r.cartao_id
-       WHERE r.tipo = 'despesa' AND r.ativo = TRUE
+       WHERE r.ativo = TRUE
        ORDER BY r.dia_referencia ASC`
     );
 

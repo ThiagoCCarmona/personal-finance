@@ -284,15 +284,29 @@ export const DashboardPage: React.FC = () => {
                     className="p-3 bg-slate-950 border border-slate-800/80 rounded-2xl flex items-center justify-between"
                   >
                     <div>
-                      <div className="text-sm font-medium text-slate-200">{rec.descricao}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-slate-200">{rec.descricao}</span>
+                        <span className={`text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded ${
+                          rec.tipo === 'receita' 
+                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/50' 
+                            : 'bg-rose-950 text-rose-400 border border-rose-800/50'
+                        }`}>
+                          {rec.tipo === 'receita' ? 'Receita' : 'Despesa'}
+                        </span>
+                      </div>
                       <span className="text-[11px] text-slate-400">
                         Dia {rec.dia_referencia} • {rec.categoria_nome}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <div className="text-right font-bold text-slate-200">
-                        <PrivacyValue value={rec.valor} />
+                      <div className="text-right font-bold">
+                        <PrivacyValue 
+                          value={rec.valor} 
+                          colored 
+                          type={rec.tipo}
+                          prefix={rec.tipo === 'despesa' ? '- ' : '+ '}
+                        />
                       </div>
 
                       {rec.ja_lancado ? (

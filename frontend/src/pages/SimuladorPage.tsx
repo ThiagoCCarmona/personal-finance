@@ -1,12 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calculator, 
   TrendingUp, 
   Sparkles, 
   Table as TableIcon,
-  BarChart3
+  BarChart3,
+  Wallet,
+  ArrowUpRight
 } from 'lucide-react';
 import { PrivacyValue } from '../components/common/PrivacyValue.js';
+import { api } from '../services/api.js';
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -18,6 +21,22 @@ import {
 } from 'recharts';
 
 export const SimuladorPage: React.FC = () => {
+  // Saldo Unificado do Usuário
+  const [saldoUnificado, setSaldoUnificado] = useState<number>(0);
+
+  useEffect(() => {
+    const carregarContas = async () => {
+      try {
+        const contas = await api.getContas();
+        const total = (contas || []).reduce((acc: number, c: any) => acc + Number(c.saldo_atual || 0), 0);
+        setSaldoUnificado(total);
+      } catch (e) {
+        console.error('Erro ao buscar contas no simulador', e);
+      }
+    };
+    carregarContas();
+  }, []);
+
   // Parâmetros de Entrada
   const [valorInicial, setValorInicial] = useState<string>('10000');
   const [aporteMensal, setAporteMensal] = useState<string>('1000');
@@ -114,6 +133,9 @@ export const SimuladorPage: React.FC = () => {
     // Série resumida anual para gráfico e tabela
     const serieAnual = serieMensal.filter(item => item.mes % 12 === 0 || item.mes === totalMeses);
 
+    const lucroLiquidoNovo = Math.round(Math.max(0, valorLiquido - vInicial) * 100) / 100;
+    const crescimentoSobreInicial = vInicial > 0 ? ((lucroLiquidoNovo / vInicial) * 100).toFixed(1) : '100';
+
     return {
       totalMeses,
       taxaMensalPct: (taxaMensal * 100).toFixed(2),
@@ -126,6 +148,8 @@ export const SimuladorPage: React.FC = () => {
       valorLiquido: Math.round(valorLiquido * 100) / 100,
       valorRealLiquido: Math.round(valorRealLiquido * 100) / 100,
       rendaMensalPassiva: Math.round(rendaMensalPassiva * 100) / 100,
+      lucroLiquidoNovo,
+      crescimentoSobreInicial,
       rentabilidadeTotalPct: totalInvestido > 0 ? ((totalJurosGanhos / totalInvestido) * 100).toFixed(1) : '0',
       serieMensal,
       serieAnual
@@ -205,9 +229,21 @@ export const SimuladorPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {/* Valor Inicial */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Aporte Inicial (R$)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-slate-300">
+                Aporte Inicial (R$)
+              </label>
+              {saldoUnificado > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setValorInicial(saldoUnificado.toFixed(2))}
+                  className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-0.5"
+                  title="Preencher com a soma das suas contas bancárias cadastradas"
+                >
+                  <Wallet size={11} /> Unificado ({saldoUnificado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                </button>
+              )}
+            </div>
             <input
               type="number"
               min="0"
@@ -396,6 +432,36 @@ export const SimuladorPage: React.FC = () => {
           </div>
           <span className="text-[11px] text-slate-400 mt-1">
             Sem consumir o patrimônio
+          </span>
+        </div>
+      </div>
+
+      {/* Destaque: Patrimônio Líquido Novo Gerado (Abatendo o Saldo/Aporte Inicial) */}
+      <div className="bg-gradient-to-r from-emerald-950/40 via-slate-900 to-blue-950/40 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            <ArrowUpRight size={24} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                Patrimônio Novo Criado (Abatendo Aporte Inicial)
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold">
+                +{calculo.crescimentoSobreInicial}% sobre o início
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Valor líquido que você terá a mais em comparação ao que tem hoje (rendimento líquido + aportes mensais).
+            </p>
+          </div>
+        </div>
+        <div className="text-right sm:border-l sm:border-slate-800 sm:pl-6">
+          <div className="text-2xl font-black text-emerald-400">
+            +<PrivacyValue value={calculo.lucroLiquidoNovo} />
+          </div>
+          <span className="text-[11px] text-slate-500 block">
+            Crescimento patrimonial puro
           </span>
         </div>
       </div>

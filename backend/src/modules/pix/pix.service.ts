@@ -195,14 +195,14 @@ export class PixService {
           `, [
             cob.valor,
             moedaId,
-            dados.conta_destino_id,
+            contaDestinoId,
             categoriaId,
             `Recebimento PIX: ${cob.mensagem || 'Cobrança confirmada'}`
           ]);
 
           await client.query(`
             UPDATE conta SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() WHERE id = $2
-          `, [cob.valor, dados.conta_destino_id]);
+          `, [cob.valor, contaDestinoId]);
         }
       }
 
