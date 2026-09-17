@@ -53,7 +53,7 @@ export class DespesasCompartilhadasService {
               tipo, valor, moeda_id, data_compra, forma_pagamento, 
               conta_id, categoria_id, descricao, status
             )
-            VALUES ('despesa', $1, $2, COALESCE($3, CURRENT_DATE), 'pix', $4, $5, $6, 'confirmado')
+            VALUES ('despesa', $1, $2, COALESCE($3, CURRENT_DATE), 'pix_debito', $4, $5, $6, 'efetivado')
           `, [
             dados.valor_total,
             moedaId,

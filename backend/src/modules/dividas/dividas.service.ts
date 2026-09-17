@@ -135,7 +135,7 @@ export class DividasService {
           tipo, valor, moeda_id, data_compra, forma_pagamento, 
           conta_id, categoria_id, descricao, status
         )
-        VALUES ('despesa', $1, $2, COALESCE($3, CURRENT_DATE), 'transferencia', $4, $5, $6, 'confirmado')
+        VALUES ('despesa', $1, $2, COALESCE($3, CURRENT_DATE), 'transferencia', $4, $5, $6, 'efetivado')
       `, [
         dados.valor_total,
         moedaId,
@@ -212,18 +212,20 @@ export class DividasService {
             categoriaId = novaCat.rows[0].id;
           }
 
+          const formaPgto = dados.forma_pagamento === 'pix' ? 'pix_debito' : (dados.forma_pagamento || 'transferencia');
+
           // Insere receita
           await client.query(`
             INSERT INTO lancamento (
               tipo, valor, moeda_id, data_compra, forma_pagamento, 
               conta_id, categoria_id, descricao, status
             )
-            VALUES ('receita', $1, $2, COALESCE($3, CURRENT_DATE), $4, $5, $6, $7, 'confirmado')
+            VALUES ('receita', $1, $2, COALESCE($3, CURRENT_DATE), $4, $5, $6, $7, 'efetivado')
           `, [
             dados.valor,
             moedaId,
             dados.data || null,
-            dados.forma_pagamento,
+            formaPgto,
             dados.conta_destino_id,
             categoriaId,
             `Recebimento de dívida: ${divida.motivo}`

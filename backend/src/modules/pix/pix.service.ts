@@ -166,7 +166,7 @@ export class PixService {
               tipo, valor, moeda_id, data_compra, forma_pagamento, 
               conta_id, categoria_id, descricao, status
             )
-            VALUES ('receita', $1, $2, CURRENT_DATE, 'pix', $3, $4, $5, 'confirmado')
+            VALUES ('receita', $1, $2, CURRENT_DATE, 'pix_debito', $3, $4, $5, 'efetivado')
           `, [
             cob.valor,
             moedaId,
