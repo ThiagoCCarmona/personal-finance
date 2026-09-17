@@ -40,9 +40,6 @@ export class CambioService {
   }> {
     const cod = moedaCodigo.toUpperCase();
 
-    // Garante histórico atualizado da AwesomeAPI para o período
-    await this.ptaxClient.buscarHistoricoDiarioAwesome(cod, Math.min(365, Math.max(dias, 30)));
-
     const sql = [
       'SELECT c.data::text, c.valor_ptax::float as valor',
       'FROM cotacao_cambio c',
@@ -51,7 +48,14 @@ export class CambioService {
       'ORDER BY c.data DESC',
       'LIMIT $2'
     ].join(' ');
-    const { rows } = await query(sql, [cod, dias + 30]);
+    let { rows } = await query(sql, [cod, dias + 30]);
+
+    // Se tiver poucos pontos, tenta buscar histórico
+    if (rows.length < 5) {
+      await this.ptaxClient.buscarHistoricoDiarioAwesome(cod, Math.min(365, Math.max(dias, 30)));
+      const recheck = await query(sql, [cod, dias + 30]);
+      rows = recheck.rows;
+    }
 
     const cronologico = rows.reverse();
 

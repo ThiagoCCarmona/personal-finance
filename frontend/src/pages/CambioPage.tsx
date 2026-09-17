@@ -208,15 +208,26 @@ export const CambioPage: React.FC = () => {
               onChange={e => setCalcDe(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none"
             >
-              <option value="USD">USD — Dólar Americano</option>
-              <option value="EUR">EUR — Euro</option>
-              <option value="BRL">BRL — Real Brasileiro</option>
-              <option value="GBP">GBP — Libra Esterlina</option>
-              <option value="CAD">CAD — Dólar Canadense</option>
-              <option value="CHF">CHF — Franco Suíço</option>
-              <option value="JPY">JPY — Iene Japonês</option>
-              <option value="BTC">BTC — Bitcoin</option>
-              <option value="ARS">ARS — Peso Argentino</option>
+              {moedas.length > 0 ? (
+                moedas.map(m => (
+                  <option key={m.codigo} value={m.codigo}>
+                    {m.codigo} — {m.nome} ({m.simbolo})
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="USD">USD — Dólar Americano</option>
+                  <option value="EUR">EUR — Euro</option>
+                  <option value="BRL">BRL — Real Brasileiro</option>
+                  <option value="ARS">ARS — Peso Argentino</option>
+                  <option value="PYG">PYG — Guarani Paraguaio</option>
+                  <option value="GBP">GBP — Libra Esterlina</option>
+                  <option value="CAD">CAD — Dólar Canadense</option>
+                  <option value="CHF">CHF — Franco Suíço</option>
+                  <option value="JPY">JPY — Iene Japonês</option>
+                  <option value="BTC">BTC — Bitcoin</option>
+                </>
+              )}
             </select>
           </div>
 
@@ -240,15 +251,26 @@ export const CambioPage: React.FC = () => {
               onChange={e => setCalcPara(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none"
             >
-              <option value="BRL">BRL — Real Brasileiro</option>
-              <option value="USD">USD — Dólar Americano</option>
-              <option value="EUR">EUR — Euro</option>
-              <option value="GBP">GBP — Libra Esterlina</option>
-              <option value="CAD">CAD — Dólar Canadense</option>
-              <option value="CHF">CHF — Franco Suíço</option>
-              <option value="JPY">JPY — Iene Japonês</option>
-              <option value="BTC">BTC — Bitcoin</option>
-              <option value="ARS">ARS — Peso Argentino</option>
+              {moedas.length > 0 ? (
+                moedas.map(m => (
+                  <option key={m.codigo} value={m.codigo}>
+                    {m.codigo} — {m.nome} ({m.simbolo})
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="BRL">BRL — Real Brasileiro</option>
+                  <option value="USD">USD — Dólar Americano</option>
+                  <option value="EUR">EUR — Euro</option>
+                  <option value="ARS">ARS — Peso Argentino</option>
+                  <option value="PYG">PYG — Guarani Paraguaio</option>
+                  <option value="GBP">GBP — Libra Esterlina</option>
+                  <option value="CAD">CAD — Dólar Canadense</option>
+                  <option value="CHF">CHF — Franco Suíço</option>
+                  <option value="JPY">JPY — Iene Japonês</option>
+                  <option value="BTC">BTC — Bitcoin</option>
+                </>
+              )}
             </select>
           </div>
 
@@ -260,7 +282,10 @@ export const CambioPage: React.FC = () => {
                 <span className="text-xs text-slate-500">Calculando...</span>
               ) : resultadoConv ? (
                 <span>
-                  {resultadoConv.valor_convertido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {calcPara}
+                  {resultadoConv.valor_convertido.toLocaleString('pt-BR', { 
+                    minimumFractionDigits: calcPara === 'PYG' ? 0 : 2, 
+                    maximumFractionDigits: calcPara === 'PYG' ? 0 : 4 
+                  })} {calcPara}
                 </span>
               ) : (
                 '—'
@@ -268,7 +293,7 @@ export const CambioPage: React.FC = () => {
             </div>
             {resultadoConv && (
               <span className="text-[10px] text-slate-500 block">
-                1 {calcDe} = {resultadoConv.cotacao.toFixed(4)} {calcPara}
+                1 {calcDe} = {resultadoConv.cotacao < 0.01 ? resultadoConv.cotacao.toFixed(6) : resultadoConv.cotacao.toFixed(4)} {calcPara}
               </span>
             )}
           </div>
@@ -282,7 +307,7 @@ export const CambioPage: React.FC = () => {
             Moedas em Consulta no Gráfico
           </span>
           <span className="text-xs text-slate-500">
-            Clique na estrela para favoritar as moedas que deseja manter na barra rápida
+            Clique em uma moeda favorita ou selecione qualquer outra no menu para ver o gráfico
           </span>
         </div>
 
@@ -290,10 +315,10 @@ export const CambioPage: React.FC = () => {
           {moedasFavoritas.map(m => (
             <div
               key={m.codigo}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer ${
                 moeda === m.codigo
-                  ? 'bg-blue-600/20 text-blue-400 border-blue-500/40 shadow-sm'
-                  : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
+                  ? 'bg-blue-600/25 text-blue-400 border-blue-500/50 shadow-sm'
+                  : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800/80'
               }`}
             >
               <button
@@ -301,45 +326,51 @@ export const CambioPage: React.FC = () => {
                 className="flex items-center gap-1.5 focus:outline-none"
               >
                 <span>{m.codigo} / BRL</span>
-                {m.ultima_cotacao_brl && (
+                {m.ultima_cotacao_brl !== undefined && m.ultima_cotacao_brl !== null && (
                   <span className="font-mono text-slate-400 font-normal">
-                    (R$ {Number(m.ultima_cotacao_brl).toFixed(2)})
+                    (R$ {m.ultima_cotacao_brl < 0.01 ? Number(m.ultima_cotacao_brl).toFixed(4) : Number(m.ultima_cotacao_brl).toFixed(2)})
                   </span>
                 )}
               </button>
               <button
                 type="button"
-                onClick={() => handleToggleFavorita(m.codigo)}
-                title="Desfavoritar"
-                className="text-amber-400 hover:text-amber-300 ml-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleFavorita(m.codigo);
+                }}
+                title="Alternar favorita"
+                className="text-amber-400 hover:text-amber-300 ml-1 p-0.5"
               >
                 <Star size={13} fill="currentColor" />
               </button>
             </div>
           ))}
 
-          {/* Seletor com outras moedas */}
+          {/* Seletor com TODAS as moedas ativas */}
           <div className="flex items-center gap-1.5">
             <select
               value={moeda}
               onChange={e => setMoeda(e.target.value)}
-              className="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none"
+              className="bg-slate-950 border border-slate-800 text-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium focus:outline-none focus:border-blue-500"
             >
-              <option value="" disabled>Outras moedas...</option>
-              {moedasNaoFavoritas.map(m => (
+              {moedas.filter(m => m.codigo !== 'BRL').map(m => (
                 <option key={m.codigo} value={m.codigo}>
-                  {m.codigo} — {m.nome}
+                  {m.codigo} — {m.nome} ({m.simbolo}) {m.favorita ? '★' : ''}
                 </option>
               ))}
             </select>
-            {moedaAtualInfo && !moedaAtualInfo.favorita && (
+            {moedaAtualInfo && (
               <button
                 type="button"
                 onClick={() => handleToggleFavorita(moeda)}
-                title="Favoritar esta moeda"
-                className="p-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-400 hover:text-amber-400 transition"
+                title={moedaAtualInfo.favorita ? "Desfavoritar moeda atual" : "Favoritar moeda atual"}
+                className={`p-1.5 rounded-lg border transition ${
+                  moedaAtualInfo.favorita 
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:text-amber-300' 
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-amber-400'
+                }`}
               >
-                <Star size={14} />
+                <Star size={14} fill={moedaAtualInfo.favorita ? "currentColor" : "none"} />
               </button>
             )}
           </div>

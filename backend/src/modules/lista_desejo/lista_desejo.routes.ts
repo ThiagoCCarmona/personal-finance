@@ -11,4 +11,5 @@ export async function listaDesejoRoutes(app: FastifyInstance) {
   app.put('/:id', listaDesejoController.atualizar.bind(listaDesejoController));
   app.delete('/:id', listaDesejoController.excluir.bind(listaDesejoController));
   app.post('/:id/comprar', listaDesejoController.comprar.bind(listaDesejoController));
+  app.post('/:id/precos', listaDesejoController.adicionarPreco.bind(listaDesejoController));
 }

@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { listaDesejoService } from './lista_desejo.service.js';
-import { criarItemDesejoSchema, atualizarItemDesejoSchema, comprarItemDesejoSchema } from './lista_desejo.schema.js';
+import { criarItemDesejoSchema, atualizarItemDesejoSchema, comprarItemDesejoSchema, adicionarPrecoSchema } from './lista_desejo.schema.js';
 
 export class ListaDesejoController {
   async listar(req: FastifyRequest<{ Querystring: { status?: string; prioridade?: string; busca?: string } }>, reply: FastifyReply) {
@@ -36,6 +36,12 @@ export class ListaDesejoController {
   async comprar(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const body = comprarItemDesejoSchema.optional().parse(req.body || {});
     const item = await listaDesejoService.marcarComoComprado(req.params.id, body);
+    return reply.send(item);
+  }
+
+  async adicionarPreco(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+    const body = adicionarPrecoSchema.parse(req.body);
+    const item = await listaDesejoService.adicionarPrecoHistorico(req.params.id, body);
     return reply.send(item);
   }
 }

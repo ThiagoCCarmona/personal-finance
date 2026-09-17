@@ -193,6 +193,7 @@ export class DashboardService {
         return {
           id: rec.id,
           descricao: rec.descricao,
+          tipo: rec.tipo,
           valor: parseFloat(rec.valor),
           dia_referencia: rec.dia_referencia,
           data_vencimento: `${targetAnoMes}-${String(Math.min(rec.dia_referencia, 28)).padStart(2, '0')}`,
@@ -221,10 +222,10 @@ export class DashboardService {
     const totalComprometimentoFuturo = parseFloat(comprometimentoRows[0]?.total_comprometido || '0');
     const parcelasFuturasCount = parseInt(comprometimentoRows[0]?.total_parcelas_futuras || '0', 10);
 
-    // Total de contas e faturas a pagar no mês
+    // Total de contas e faturas a pagar no mês (apenas despesas)
     const totalFaturasMes = faturas.reduce((acc, f) => acc + f.total_fatura, 0);
     const totalRecorrenciasNaoLancadas = recorrenciasStatus
-      .filter(r => !r.ja_lancado)
+      .filter(r => !r.ja_lancado && r.tipo === 'despesa')
       .reduce((acc, r) => acc + r.valor, 0);
 
     const totalPrevistoMes = totalFaturasMes + totalRecorrenciasNaoLancadas;

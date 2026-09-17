@@ -5,6 +5,7 @@ export interface ItemDesejo {
   id: string;
   nome: string;
   link: string | null;
+  links?: Array<{ url: string; loja?: string }> | null;
   preco_estimado: number;
   prioridade: 'baixa' | 'media' | 'alta' | 'urgente';
   categoria_id: string | null;
@@ -14,6 +15,7 @@ export interface ItemDesejo {
   status: 'planejado' | 'comprado' | 'descartado';
   observacoes: string | null;
   data_alvo: string | null;
+  historico_precos?: Array<{ data: string; preco: number; loja?: string; observacao?: string }> | null;
   comprado_em: string | null;
   criado_em: string;
   atualizado_em: string;
@@ -56,7 +58,9 @@ export class ListaDesejoService {
     const { rows } = await query(sql, params);
     return rows.map(r => ({
       ...r,
-      preco_estimado: parseFloat(r.preco_estimado)
+      preco_estimado: parseFloat(r.preco_estimado),
+      links: Array.isArray(r.links) ? r.links : (r.link ? [{ url: r.link, loja: 'Loja' }] : []),
+      historico_precos: Array.isArray(r.historico_precos) ? r.historico_precos : []
     }));
   }
 
@@ -68,29 +72,57 @@ export class ListaDesejoService {
       WHERE ld.id = $1
     `, [id]);
     if (rows.length === 0) return null;
+    const r = rows[0];
     return {
-      ...rows[0],
-      preco_estimado: parseFloat(rows[0].preco_estimado)
+      ...r,
+      preco_estimado: parseFloat(r.preco_estimado),
+      links: Array.isArray(r.links) ? r.links : (r.link ? [{ url: r.link, loja: 'Loja' }] : []),
+      historico_precos: Array.isArray(r.historico_precos) ? r.historico_precos : []
     };
   }
 
   async criar(dados: CriarItemDesejoInput): Promise<ItemDesejo> {
+    const hoje = new Date().toISOString().split('T')[0];
+
+    // Normaliza links
+    let linksFinal: Array<{ url: string; loja?: string }> = [];
+    if (Array.isArray(dados.links) && dados.links.length > 0) {
+      linksFinal = dados.links;
+    } else if (dados.link) {
+      linksFinal = [{ url: dados.link, loja: 'Loja Principal' }];
+    }
+
+    // Normaliza histórico de preços
+    let historicoFinal: Array<{ data: string; preco: number; loja?: string; observacao?: string }> = [];
+    if (Array.isArray(dados.historico_precos) && dados.historico_precos.length > 0) {
+      historicoFinal = dados.historico_precos;
+    } else if (dados.preco_estimado > 0) {
+      historicoFinal = [{
+        data: hoje,
+        preco: dados.preco_estimado,
+        loja: linksFinal[0]?.loja || 'Inicial',
+        observacao: 'Preço cadastrado inicialmente'
+      }];
+    }
+
     const { rows } = await query(`
       INSERT INTO lista_desejo (
-        nome, link, preco_estimado, prioridade, categoria_id, tipo_gasto, status, observacoes, data_alvo
+        nome, link, links, preco_estimado, prioridade, categoria_id, tipo_gasto, status, observacoes, data_alvo, historico_precos
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `, [
       dados.nome.trim(),
-      dados.link || null,
+      linksFinal[0]?.url || dados.link || null,
+      JSON.stringify(linksFinal),
       dados.preco_estimado,
       dados.prioridade || 'media',
       dados.categoria_id || null,
       dados.tipo_gasto || 'pessoal',
       dados.status || 'planejado',
       dados.observacoes || null,
-      dados.data_alvo || null
+      dados.data_alvo || null,
+      JSON.stringify(historicoFinal)
     ]);
     return this.getById(rows[0].id) as Promise<ItemDesejo>;
   }
@@ -103,7 +135,11 @@ export class ListaDesejoService {
     Object.entries(dados).forEach(([key, val]) => {
       if (val !== undefined) {
         fields.push(`${key} = $${idx++}`);
-        values.push(val === '' ? null : val);
+        if (key === 'links' || key === 'historico_precos') {
+          values.push(JSON.stringify(val));
+        } else {
+          values.push(val === '' ? null : val);
+        }
       }
     });
 
@@ -116,6 +152,30 @@ export class ListaDesejoService {
     const { rows } = await query(sql, values);
     if (rows.length === 0) return null;
     return this.getById(id);
+  }
+
+  async adicionarPrecoHistorico(id: string, entrada: { data?: string; preco: number; loja?: string; observacao?: string }): Promise<ItemDesejo> {
+    const item = await this.getById(id);
+    if (!item) throw new Error('Item não encontrado');
+
+    const hoje = new Date().toISOString().split('T')[0];
+    const novoRegistro = {
+      data: entrada.data || hoje,
+      preco: Number(entrada.preco),
+      loja: entrada.loja || '',
+      observacao: entrada.observacao || ''
+    };
+
+    const historicoAtual = Array.isArray(item.historico_precos) ? [...item.historico_precos] : [];
+    historicoAtual.push(novoRegistro);
+
+    await query(`
+      UPDATE lista_desejo 
+      SET historico_precos = $1, preco_estimado = $2, atualizado_em = NOW() 
+      WHERE id = $3
+    `, [JSON.stringify(historicoAtual), entrada.preco, id]);
+
+    return this.getById(id) as Promise<ItemDesejo>;
   }
 
   async excluir(id: string): Promise<boolean> {

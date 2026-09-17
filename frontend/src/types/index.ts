@@ -445,10 +445,23 @@ export interface MetricasSistema {
   data_hora_servidor: string;
 }
 
+export interface ItemDesejoLink {
+  url: string;
+  loja?: string;
+}
+
+export interface ItemDesejoHistoricoPreco {
+  data: string;
+  preco: number;
+  loja?: string;
+  observacao?: string;
+}
+
 export interface ItemDesejo {
   id: string;
   nome: string;
   link: string | null;
+  links?: ItemDesejoLink[];
   preco_estimado: number;
   prioridade: 'baixa' | 'media' | 'alta' | 'urgente';
   categoria_id: string | null;
@@ -458,6 +471,7 @@ export interface ItemDesejo {
   status: 'planejado' | 'comprado' | 'descartado';
   observacoes: string | null;
   data_alvo: string | null;
+  historico_precos?: ItemDesejoHistoricoPreco[];
   comprado_em: string | null;
   criado_em: string;
   atualizado_em: string;

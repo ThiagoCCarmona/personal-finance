@@ -1,8 +1,21 @@
 import { z } from 'zod';
 
+export const linkItemSchema = z.object({
+  url: z.string().url('URL inválida').or(z.string().min(1)),
+  loja: z.string().optional().default(''),
+});
+
+export const historicoPrecoItemSchema = z.object({
+  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD').default(() => new Date().toISOString().split('T')[0]),
+  preco: z.number().positive('Preço deve ser positivo'),
+  loja: z.string().optional().default(''),
+  observacao: z.string().optional().default(''),
+});
+
 export const criarItemDesejoSchema = z.object({
   nome: z.string().min(1, 'Informe o nome do item').max(255),
-  link: z.string().url('Link inválido').optional().nullable().or(z.literal('')),
+  link: z.string().optional().nullable().or(z.literal('')),
+  links: z.array(linkItemSchema).optional().default([]),
   preco_estimado: z.number().positive('Preço deve ser maior que zero'),
   prioridade: z.enum(['baixa', 'media', 'alta', 'urgente']).default('media'),
   categoria_id: z.string().uuid().optional().nullable().or(z.literal('')),
@@ -10,9 +23,12 @@ export const criarItemDesejoSchema = z.object({
   status: z.enum(['planejado', 'comprado', 'descartado']).default('planejado'),
   observacoes: z.string().optional().nullable(),
   data_alvo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data alvo inválida (AAAA-MM-DD)').optional().nullable().or(z.literal('')),
+  historico_precos: z.array(historicoPrecoItemSchema).optional().default([]),
 });
 
 export const atualizarItemDesejoSchema = criarItemDesejoSchema.partial();
+
+export const adicionarPrecoSchema = historicoPrecoItemSchema;
 
 export const comprarItemDesejoSchema = z.object({
   conta_id: z.string().uuid().optional().nullable(),
@@ -26,3 +42,4 @@ export const comprarItemDesejoSchema = z.object({
 export type CriarItemDesejoInput = z.infer<typeof criarItemDesejoSchema>;
 export type AtualizarItemDesejoInput = z.infer<typeof atualizarItemDesejoSchema>;
 export type ComprarItemDesejoInput = z.infer<typeof comprarItemDesejoSchema>;
+export type AdicionarPrecoInput = z.infer<typeof adicionarPrecoSchema>;

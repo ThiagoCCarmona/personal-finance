@@ -220,6 +220,7 @@ export const api = {
   updateItemDesejo: (id: string, body: any) => request<import('../types/index.js').ItemDesejo>(`/lista-desejo/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteItemDesejo: (id: string) => request<any>(`/lista-desejo/${id}`, { method: 'DELETE' }),
   comprarItemDesejo: (id: string, body?: any) => request<import('../types/index.js').ItemDesejo>(`/lista-desejo/${id}/comprar`, { method: 'POST', body: JSON.stringify(body || {}) }),
+  adicionarPrecoItemDesejo: (id: string, body: { data?: string; preco: number; loja?: string; observacao?: string }) => request<import('../types/index.js').ItemDesejo>(`/lista-desejo/${id}/precos`, { method: 'POST', body: JSON.stringify(body) }),
 };
 
 

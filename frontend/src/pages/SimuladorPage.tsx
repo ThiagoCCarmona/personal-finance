@@ -234,14 +234,9 @@ export const SimuladorPage: React.FC = () => {
                 Aporte Inicial (R$)
               </label>
               {saldoUnificado > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setValorInicial(saldoUnificado.toFixed(2))}
-                  className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-0.5"
-                  title="Preencher com a soma das suas contas bancárias cadastradas"
-                >
-                  <Wallet size={11} /> Unificado ({saldoUnificado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
-                </button>
+                <span className="text-[10px] text-slate-400 font-mono" title="Saldo somado de todas as contas">
+                  Saldo: {saldoUnificado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
               )}
             </div>
             <input
@@ -252,6 +247,30 @@ export const SimuladorPage: React.FC = () => {
               onChange={e => setValorInicial(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 font-medium focus:outline-none focus:border-blue-500"
             />
+            {saldoUnificado > 0 && (
+              <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-0.5">
+                  <Wallet size={10} /> Saldo:
+                </span>
+                {[
+                  { label: '10%', val: 0.10 },
+                  { label: '25%', val: 0.25 },
+                  { label: '50%', val: 0.50 },
+                  { label: '75%', val: 0.75 },
+                  { label: '100%', val: 1.00 }
+                ].map(item => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => setValorInicial((saldoUnificado * item.val).toFixed(2))}
+                    className="px-1.5 py-0.5 text-[10px] rounded bg-slate-800 hover:bg-blue-600 hover:text-white text-slate-300 font-semibold transition border border-slate-700/50"
+                    title={`Preencher com ${item.label} do saldo (${(saldoUnificado * item.val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Aporte Mensal */}
