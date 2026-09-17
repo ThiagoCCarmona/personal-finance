@@ -826,7 +826,7 @@ export const SocialPage: React.FC = () => {
                   >
                     <option value="">{editingDividaId ? 'Não editável' : 'Selecione a conta...'}</option>
                     {contas.map(c => (
-                      <option key={c.id} value={c.id}>{c.apelido} (Saldo: R$ {c.saldo_atual.toFixed(2)})</option>
+                      <option key={c.id} value={c.id}>{c.apelido} (Saldo: R$ {Number(c.saldo_atual || 0).toFixed(2)})</option>
                     ))}
                   </select>
                 </div>

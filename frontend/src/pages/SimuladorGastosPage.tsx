@@ -185,7 +185,7 @@ export const SimuladorGastosPage: React.FC = () => {
                   className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
                 >
                   {contas.map(c => (
-                    <option key={c.id} value={c.id}>{c.apelido} (Saldo: R$ {c.saldo_atual.toFixed(2)})</option>
+                    <option key={c.id} value={c.id}>{c.apelido} (Saldo: R$ {Number(c.saldo_atual || 0).toFixed(2)})</option>
                   ))}
                 </select>
               </div>
@@ -199,7 +199,7 @@ export const SimuladorGastosPage: React.FC = () => {
                     className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
                   >
                     {cartoes.map(c => (
-                      <option key={c.id} value={c.id}>{c.apelido} (Limite: R$ {c.limite.toFixed(2)})</option>
+                      <option key={c.id} value={c.id}>{c.apelido} (Limite: R$ {Number(c.limite || 0).toFixed(2)})</option>
                     ))}
                   </select>
                 </div>
