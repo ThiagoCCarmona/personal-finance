@@ -1,10 +1,10 @@
 -- Migração 0010: Inserir Moeda Chinesa (CNY) e estruturar histórico de preços por link na Lista de Desejos
 
 -- 1. Inserir CNY (Yuan Chinês) se ainda não existir
-INSERT INTO moeda (codigo, nome, simbolo, decimal_places, padrao, ativa, favorita)
-VALUES ('CNY', 'Yuan Chinês', '¥', 2, FALSE, TRUE, FALSE)
+INSERT INTO moeda (codigo, nome, simbolo, ativo, favorita)
+VALUES ('CNY', 'Yuan Chinês', '¥', TRUE, FALSE)
 ON CONFLICT (codigo) DO UPDATE 
-SET ativa = TRUE, simbolo = '¥', nome = 'Yuan Chinês';
+SET ativo = TRUE, simbolo = '¥', nome = 'Yuan Chinês';
 
 -- 2. Atualizar itens existentes da lista_desejo para garantir id e historico_precos em cada link
 UPDATE lista_desejo
