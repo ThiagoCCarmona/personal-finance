@@ -2,12 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   Calculator, 
   TrendingUp, 
-  DollarSign, 
-  Percent, 
-  ShieldCheck, 
   Sparkles, 
-  HelpCircle,
-  Calendar,
   Table as TableIcon,
   BarChart3
 } from 'lucide-react';
@@ -19,8 +14,7 @@ import {
   XAxis, 
   YAxis, 
   Tooltip, 
-  CartesianGrid, 
-  Legend 
+  CartesianGrid 
 } from 'recharts';
 
 export const SimuladorPage: React.FC = () => {
@@ -139,7 +133,7 @@ export const SimuladorPage: React.FC = () => {
   }, [valorInicial, aporteMensal, taxaJuros, tipoTaxa, prazo, tipoPrazo, inflacaoAnual, tipoTributacao, aliquotaFixa]);
 
   // Predefinições de Mercado
-  const aplicarPredefinicao = (nome: string, taxa: string, tipo: 'anual' | 'mensal', trib: 'regressivo' | 'isento') => {
+  const aplicarPredefinicao = (_nome: string, taxa: string, tipo: 'anual' | 'mensal', trib: 'regressivo' | 'isento') => {
     setTaxaJuros(taxa);
     setTipoTaxa(tipo);
     setTipoTributacao(trib);
@@ -315,8 +309,23 @@ export const SimuladorPage: React.FC = () => {
             >
               <option value="regressivo">Tabela Regressiva (CDB/Tesouro)</option>
               <option value="isento">Isento de IR (LCI/LCA/FII)</option>
-              <option value="fixo">Alíquota Fixa (15%)</option>
+              <option value="fixo">Alíquota Fixa Personalizada</option>
             </select>
+            {tipoTributacao === 'fixo' && (
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="0.5"
+                  value={aliquotaFixa}
+                  onChange={e => setAliquotaFixa(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
+                  placeholder="% IR"
+                />
+                <span className="text-xs text-slate-400">%</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

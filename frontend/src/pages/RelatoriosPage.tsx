@@ -3,13 +3,10 @@ import {
   FileSpreadsheet, 
   Download, 
   Printer, 
-  TrendingUp, 
-  TrendingDown, 
   PiggyBank, 
   DollarSign, 
   PieChart as PieIcon, 
   BarChart3, 
-  Filter,
   Calendar,
   Layers,
   ArrowUpRight,
@@ -240,8 +237,14 @@ export const RelatoriosPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Cards de KPIs Principais */}
-      {dashboard && (
+      {/* Loading ou Cards de KPIs Principais */}
+      {loading && (
+        <div className="py-8 text-center text-xs text-slate-400">
+          Carregando dados do relatório...
+        </div>
+      )}
+
+      {!loading && dashboard && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Receitas */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
