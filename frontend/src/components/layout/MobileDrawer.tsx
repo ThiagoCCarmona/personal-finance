@@ -79,7 +79,11 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
                   to={item.to}
                   onClick={onClose}
                   className={({ isActive }) =>
-                    lex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all 
+                    `flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                      isActive
+                        ? 'bg-blue-600/15 text-blue-400 border border-blue-500/20 font-semibold shadow-sm'
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                    }`
                   }
                 >
                   <Icon size={17} />
