@@ -353,12 +353,12 @@ export async function runAdminDemoSeed() {
 
     await client.query(`
       INSERT INTO cobranca_pix (
-        usuario_id, chave_pix_id, valor, identificador, payload_brcode, descricao, status
+        usuario_id, chave_pix_id, valor, txid, payload_emv, mensagem, status
       )
       VALUES (
         $1, $2, 1200.00, 'PRAIA2025',
         '00020126580014br.gov.bcb.pix0114+551198888777752040000530398654071200.005802BR5926Administrador Demonstrativo6009SAO PAULO62130509PRAIA20256304ABCD',
-        'Cobrança PIX Cota Casa de Praia', 'pendente'
+        'Cobrança PIX Cota Casa de Praia', 'aguardando_confirmacao'
       );
     `, [adminUserId, chavePixAdmin[0].id]);
 
