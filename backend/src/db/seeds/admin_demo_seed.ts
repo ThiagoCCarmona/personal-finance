@@ -35,11 +35,13 @@ export async function runAdminDemoSeed() {
     ];
 
     for (const inst of instituicoesPadrao) {
-      await client.query(`
-        INSERT INTO instituicao (nome, tipo, icone, cor, ativo)
-        SELECT $1, $2, $3, $4, TRUE
-        WHERE NOT EXISTS (SELECT 1 FROM instituicao WHERE nome = $1)
-      `, [inst.nome, inst.tipo, inst.icone, (inst as any).cor || '#3B82F6']);
+      const { rows } = await client.query(`SELECT id FROM instituicao WHERE nome = $1 LIMIT 1`, [inst.nome]);
+      if (rows.length === 0) {
+        await client.query(`
+          INSERT INTO instituicao (nome, tipo, icone, cor, ativo)
+          VALUES ($1, $2, $3, $4, TRUE)
+        `, [inst.nome, inst.tipo, inst.icone, (inst as any).cor || '#3B82F6']);
+      }
     }
 
     const { rows: instRows } = await client.query(`SELECT id, nome FROM instituicao`);

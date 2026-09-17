@@ -131,15 +131,17 @@ export async function seedUserDefaultCategories(userId: string, client: PoolClie
     // Insere subcategorias filhas
     if (cat.subcategorias && cat.subcategorias.length > 0) {
       for (const sub of cat.subcategorias) {
-        await client.query(
-          `INSERT INTO categoria (usuario_id, nome, tipo, icone, cor, categoria_pai_id, ativo)
-           SELECT $1, $2, $3, $4, $5, $6, TRUE
-           WHERE NOT EXISTS (
-             SELECT 1 FROM categoria 
-             WHERE usuario_id = $1 AND nome = $2 AND categoria_pai_id = $6
-           )`,
-          [userId, sub, cat.tipo, cat.icone, cat.cor, catPaiId]
+        const { rows: subExist } = await client.query(
+          `SELECT id FROM categoria WHERE usuario_id = $1 AND nome = $2 AND categoria_pai_id = $3 LIMIT 1`,
+          [userId, sub, catPaiId]
         );
+        if (subExist.length === 0) {
+          await client.query(
+            `INSERT INTO categoria (usuario_id, nome, tipo, icone, cor, categoria_pai_id, ativo)
+             VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
+            [userId, sub, cat.tipo, cat.icone, cat.cor, catPaiId]
+          );
+        }
       }
     }
   }
