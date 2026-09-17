@@ -18,7 +18,7 @@ export const criarInvestimentoSchema = z.object({
   tipo: tipoInvestimentoEnum,
   nome: z.string().min(2).max(100),
   ticker: z.string().max(20).optional().nullable(),
-  moeda_id: z.string().uuid(),
+  moeda_id: z.string().uuid().optional().nullable(),
   instituicao: z.string().max(100).optional().nullable(),
   indexador: z.string().max(50).optional().nullable(),
   taxa_anual: z.number().nonnegative().optional().nullable(),

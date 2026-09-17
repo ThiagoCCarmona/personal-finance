@@ -1,14 +1,17 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ArrowLeftRight, CreditCard, RefreshCw, Landmark } from 'lucide-react';
+import { LayoutDashboard, ArrowLeftRight, CreditCard, RefreshCw, Menu } from 'lucide-react';
 
-export const BottomNav: React.FC = () => {
+interface BottomNavProps {
+  onOpenMenu?: () => void;
+}
+
+export const BottomNav: React.FC<BottomNavProps> = ({ onOpenMenu }) => {
   const navItems = [
     { to: '/', label: 'Início', icon: LayoutDashboard },
     { to: '/lancamentos', label: 'Extrato', icon: ArrowLeftRight },
     { to: '/cartoes', label: 'Cartões', icon: CreditCard },
     { to: '/recorrencias', label: 'Fixas', icon: RefreshCw },
-    { to: '/contas', label: 'Contas', icon: Landmark },
   ];
 
   return (
@@ -30,6 +33,17 @@ export const BottomNav: React.FC = () => {
           </NavLink>
         );
       })}
+
+      {/* Botão de Menu para abrir todas as 14 funcionalidades */}
+      <button
+        type="button"
+        onClick={onOpenMenu}
+        className="flex flex-col items-center justify-center w-full py-1 text-[10px] font-medium text-slate-400 hover:text-blue-400 transition-colors"
+        aria-label="Abrir todas as opções"
+      >
+        <Menu size={18} className="mb-0.5 text-blue-400" />
+        <span className="text-slate-300 font-semibold">Menu</span>
+      </button>
     </nav>
   );
 };

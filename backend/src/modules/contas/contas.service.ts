@@ -31,14 +31,17 @@ export class ContasService {
 
   async create(input: ContaInput) {
     return withTransaction(async (client) => {
-      // Se não enviou moeda, busca o ID da moeda BRL padrão
+      // Se não enviou moeda, busca ou cria o ID da moeda BRL padrão
       let moedaId = input.moeda_id;
       if (!moedaId) {
         const { rows: brl } = await client.query("SELECT id FROM moeda WHERE codigo = 'BRL' LIMIT 1");
         if (brl.length > 0) {
           moedaId = brl[0].id;
         } else {
-          throw new Error('Moeda padrão BRL não encontrada no banco.');
+          const { rows: novoBrl } = await client.query(
+            "INSERT INTO moeda (codigo, nome, simbolo, ativo) VALUES ('BRL', 'Real Brasileiro', 'R$', TRUE) RETURNING id"
+          );
+          moedaId = novoBrl[0].id;
         }
       }
 

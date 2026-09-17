@@ -12,6 +12,12 @@ export class RelatoriosController {
       .send(csv);
   }
 
+  async obterDashboard(request: FastifyRequest<{ Querystring: { data_inicio?: string; data_fim?: string; conta_id?: string } }>, reply: FastifyReply) {
+    const { data_inicio, data_fim, conta_id } = request.query;
+    const dashboard = await relatoriosService.obterDashboard(data_inicio, data_fim, conta_id);
+    return reply.send(dashboard);
+  }
+
   async exportarPatrimonioCsv(request: FastifyRequest, reply: FastifyReply) {
     const csv = await relatoriosService.exportarPatrimonioCsv();
 

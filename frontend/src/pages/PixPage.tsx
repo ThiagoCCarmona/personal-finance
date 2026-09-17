@@ -38,15 +38,15 @@ export const PixPage: React.FC = () => {
     try {
       setLoading(true);
       const [chRes, cobRes, divRes, cRes] = await Promise.all([
-        api.getChavesPix(),
-        api.getCobrancasPix(),
-        api.getDividas('pendente'),
-        api.getContas()
+        api.getChavesPix().catch(() => []),
+        api.getCobrancasPix().catch(() => []),
+        api.getDividas('pendente').catch(() => []),
+        api.getContas().catch(() => [])
       ]);
-      setChaves(chRes);
-      setCobrancas(cobRes);
-      setDividas(divRes);
-      setContas(cRes);
+      setChaves(Array.isArray(chRes) ? chRes : (chRes as any)?.data || []);
+      setCobrancas(Array.isArray(cobRes) ? cobRes : (cobRes as any)?.data || []);
+      setDividas(Array.isArray(divRes) ? divRes : (divRes as any)?.data || []);
+      setContas(Array.isArray(cRes) ? cRes : (cRes as any)?.data || []);
     } catch (err) {
       console.error('Erro ao carregar PIX:', err);
     } finally {

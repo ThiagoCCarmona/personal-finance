@@ -1,15 +1,29 @@
 import React from 'react';
-import { Eye, EyeOff, LogOut, Wallet2 } from 'lucide-react';
+import { Eye, EyeOff, LogOut, Wallet2, Menu } from 'lucide-react';
 import { usePrivacy } from '../../contexts/PrivacyContext.js';
 import { useAuth } from '../../contexts/AuthContext.js';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  onOpenMenu?: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onOpenMenu }) => {
   const { isPrivate, togglePrivacy } = usePrivacy();
   const { user, logout } = useAuth();
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 sm:px-6 bg-slate-900/90 backdrop-blur border-b border-slate-800">
       <div className="flex items-center gap-3">
+        {onOpenMenu && (
+          <button
+            type="button"
+            onClick={onOpenMenu}
+            className="md:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            aria-label="Abrir menu de navegação"
+          >
+            <Menu size={22} />
+          </button>
+        )}
         <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-600/20 text-blue-500 border border-blue-500/30">
           <Wallet2 size={22} />
         </div>

@@ -3,11 +3,14 @@ import { Outlet } from 'react-router-dom';
 import { Header } from './Header.js';
 import { Sidebar } from './Sidebar.js';
 import { BottomNav } from './BottomNav.js';
+import { MobileDrawer } from './MobileDrawer.js';
+import { ErrorBoundary } from '../common/ErrorBoundary.js';
 import { FloatingActionButton } from '../common/FloatingActionButton.js';
 import { LancamentoFormModal } from '../lancamentos/LancamentoFormModal.js';
 
 export const AppLayout: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const handleCreated = () => {
     setIsModalOpen(false);
@@ -17,14 +20,17 @@ export const AppLayout: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950">
-      <Header />
+      <Header onOpenMenu={() => setIsDrawerOpen(true)} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 max-w-7xl w-full mx-auto">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
-      <BottomNav />
+      <BottomNav onOpenMenu={() => setIsDrawerOpen(true)} />
+      <MobileDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
       <FloatingActionButton onClick={() => setIsModalOpen(true)} />
       <LancamentoFormModal
         isOpen={isModalOpen}

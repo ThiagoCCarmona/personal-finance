@@ -26,6 +26,7 @@ import { despesasCompartilhadasRoutes } from './modules/despesas_compartilhadas/
 import { pixRoutes } from './modules/pix/pix.routes.js';
 import { relatoriosRoutes } from './modules/relatorios/relatorios.routes.js';
 import { sistemaRoutes } from './modules/sistema/sistema.routes.js';
+import { moedasRoutes } from './modules/moedas/moedas.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -85,6 +86,7 @@ export async function buildApp() {
   await app.register(pixRoutes, { prefix: '/api/pix' });
   await app.register(relatoriosRoutes, { prefix: '/api/relatorios' });
   await app.register(sistemaRoutes, { prefix: '/api/sistema' });
+  await app.register(moedasRoutes, { prefix: '/api/moedas' });
 
   // Servir frontend compilado estaticamente em produção se existir
   const candidatePaths = [

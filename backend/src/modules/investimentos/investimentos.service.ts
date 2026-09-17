@@ -80,12 +80,29 @@ export class InvestimentosService {
   }
 
   async criar(data: CriarInvestimentoInput) {
-    const sql = 'INSERT INTO investimento (tipo, nome, ticker, moeda_id, instituicao, indexador, taxa_anual, data_vencimento) VALUES (, , , , , , , ) RETURNING *';
+    let moedaId = data.moeda_id;
+    if (!moedaId) {
+      const { rows: brl } = await query("SELECT id FROM moeda WHERE codigo = 'BRL' LIMIT 1");
+      if (brl.length > 0) {
+        moedaId = brl[0].id;
+      } else {
+        const { rows: novoBrl } = await query(
+          "INSERT INTO moeda (codigo, nome, simbolo, ativo) VALUES ('BRL', 'Real Brasileiro', 'R$', TRUE) ON CONFLICT (codigo) DO UPDATE SET ativo = TRUE RETURNING id"
+        );
+        moedaId = novoBrl[0].id;
+      }
+    }
+
+    const sql = `
+      INSERT INTO investimento (tipo, nome, ticker, moeda_id, instituicao, indexador, taxa_anual, data_vencimento) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+      RETURNING *
+    `;
     const { rows } = await query(sql, [
       data.tipo,
       data.nome,
       data.ticker || null,
-      data.moeda_id,
+      moedaId,
       data.instituicao || null,
       data.indexador || null,
       data.taxa_anual || null,
@@ -116,7 +133,7 @@ export class InvestimentosService {
   }
 
   async remover(id: string) {
-    const { rowCount } = await query('DELETE FROM investimento WHERE id = ', [id]);
+    const { rowCount } = await query('DELETE FROM investimento WHERE id = $1', [id]);
     return (rowCount ?? 0) > 0;
   }
 
@@ -124,7 +141,7 @@ export class InvestimentosService {
     let sql = 'SELECT m.*, i.nome as investimento_nome, i.ticker as investimento_ticker, i.tipo as investimento_tipo FROM movimentacao_investimento m JOIN investimento i ON i.id = m.investimento_id';
     const values: any[] = [];
     if (investimentoId) {
-      sql += ' WHERE m.investimento_id = ';
+      sql += ' WHERE m.investimento_id = $1';
       values.push(investimentoId);
     }
     sql += ' ORDER BY m.data DESC, m.criado_em DESC';
@@ -135,7 +152,11 @@ export class InvestimentosService {
 
   async registrarMovimentacao(data: CriarMovimentacaoInput) {
     const cotacao = data.cotacao_praticada || (data.valor / data.quantidade);
-    const sql = 'INSERT INTO movimentacao_investimento (investimento_id, tipo, valor, quantidade, cotacao_praticada, data, observacao) VALUES (, , , , , , ) RETURNING *';
+    const sql = `
+      INSERT INTO movimentacao_investimento (investimento_id, tipo, valor, quantidade, cotacao_praticada, data, observacao) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      RETURNING *
+    `;
     const { rows } = await query(sql, [
       data.investimento_id,
       data.tipo,

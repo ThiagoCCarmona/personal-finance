@@ -5,7 +5,7 @@ import { CriarDespesaCompartilhadaSchema } from './despesas_compartilhadas.schem
 export class DespesasCompartilhadasController {
   async listar(request: FastifyRequest, reply: FastifyReply) {
     const list = await despesasCompartilhadasService.listar();
-    return reply.send({ data: list });
+    return reply.send(list);
   }
 
   async criar(request: FastifyRequest, reply: FastifyReply) {
@@ -14,7 +14,7 @@ export class DespesasCompartilhadasController {
       return reply.status(400).send({ error: parse.error.format() });
     }
     const item = await despesasCompartilhadasService.criar(parse.data);
-    return reply.status(201).send({ data: item });
+    return reply.status(201).send(item);
   }
 }
 

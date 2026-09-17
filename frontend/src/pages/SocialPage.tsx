@@ -56,15 +56,15 @@ export const SocialPage: React.FC = () => {
     try {
       setLoading(true);
       const [pRes, dRes, rRes, cRes] = await Promise.all([
-        api.getPessoas(),
-        api.getDividas(filtroStatus !== 'todos' ? filtroStatus : undefined),
-        api.getResumoDividas(),
-        api.getContas()
+        api.getPessoas().catch(() => []),
+        api.getDividas(filtroStatus !== 'todos' ? filtroStatus : undefined).catch(() => []),
+        api.getResumoDividas().catch(() => ({ totalReceber: 0, totalRecebido: 0, totalPerdoado: 0, qtdPendentes: 0 })),
+        api.getContas().catch(() => [])
       ]);
-      setPessoas(pRes);
-      setDividas(dRes);
-      setResumo(rRes);
-      setContas(cRes);
+      setPessoas(Array.isArray(pRes) ? pRes : (pRes as any)?.data || []);
+      setDividas(Array.isArray(dRes) ? dRes : (dRes as any)?.data || []);
+      setResumo(rRes && typeof rRes === 'object' ? ((rRes as any)?.data || rRes) : { totalReceber: 0, totalRecebido: 0, totalPerdoado: 0, qtdPendentes: 0 });
+      setContas(Array.isArray(cRes) ? cRes : (cRes as any)?.data || []);
     } catch (err) {
       console.error('Erro ao carregar dados sociais:', err);
     } finally {

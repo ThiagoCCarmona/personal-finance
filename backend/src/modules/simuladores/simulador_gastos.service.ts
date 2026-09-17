@@ -117,7 +117,7 @@ export class SimuladorGastosService {
     const utilRes = await query(`
       SELECT COALESCE(SUM(l.valor), 0) AS total_utilizado
       FROM lancamento l
-      WHERE l.cartao_id = $1 AND l.status = 'confirmado'
+      WHERE l.cartao_id = $1 AND l.status = 'efetivado'
     `, [dados.cartao_id]);
     const limiteUtilizadoAtual = parseFloat(utilRes.rows[0]?.total_utilizado || '0');
     const limiteDisponivelAtual = Math.max(0, limiteTotal - limiteUtilizadoAtual);
@@ -137,9 +137,12 @@ export class SimuladorGastosService {
         SELECT COALESCE(SUM(l.valor), 0) AS total_mes
         FROM lancamento l
         WHERE l.cartao_id = $1 
-          AND l.data_competencia_fatura = $2
-          AND l.status = 'confirmado'
-      `, [dados.cartao_id, compStr]);
+          AND (
+            TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $2 
+            OR l.data_competencia_fatura = $3
+          )
+          AND l.status = 'efetivado'
+      `, [dados.cartao_id, compStr, `${compStr}-01`]);
 
       const faturaAtual = parseFloat(fatRes.rows[0]?.total_mes || '0');
       projecoes.push({

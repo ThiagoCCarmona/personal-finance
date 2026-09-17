@@ -5,7 +5,7 @@ import { CriarChavePixSchema, CriarCobrancaPixSchema, ConfirmarCobrancaPixSchema
 export class PixController {
   async listarChaves(request: FastifyRequest, reply: FastifyReply) {
     const chaves = await pixService.listarChaves();
-    return reply.send({ data: chaves });
+    return reply.send(chaves);
   }
 
   async criarChave(request: FastifyRequest, reply: FastifyReply) {
@@ -14,7 +14,7 @@ export class PixController {
       return reply.status(400).send({ error: parse.error.format() });
     }
     const chave = await pixService.criarChave(parse.data);
-    return reply.status(201).send({ data: chave });
+    return reply.status(201).send(chave);
   }
 
   async excluirChave(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
@@ -24,7 +24,7 @@ export class PixController {
 
   async listarCobrancas(request: FastifyRequest, reply: FastifyReply) {
     const cobrancas = await pixService.listarCobrancas();
-    return reply.send({ data: cobrancas });
+    return reply.send(cobrancas);
   }
 
   async criarCobranca(request: FastifyRequest, reply: FastifyReply) {
@@ -33,7 +33,7 @@ export class PixController {
       return reply.status(400).send({ error: parse.error.format() });
     }
     const cobranca = await pixService.criarCobranca(parse.data);
-    return reply.status(201).send({ data: cobranca });
+    return reply.status(201).send(cobranca);
   }
 
   async confirmarRecebimento(request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {

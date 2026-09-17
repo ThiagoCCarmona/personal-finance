@@ -53,23 +53,18 @@ export const InvestimentosPage: React.FC = () => {
   const carregarDados = async () => {
     try {
       setLoading(true);
-      const [dataAtivos, dataResumo, dataContas] = await Promise.all([
+      const [dataAtivos, dataResumo, dataMoedas] = await Promise.all([
         api.getInvestimentos(),
         api.getResumoCarteira(),
-        api.getContas(),
+        api.getMoedas().catch(() => []),
       ]);
-      setAtivos(dataAtivos);
-      setResumo(dataResumo);
-      if (dataContas && dataContas.length > 0) {
-        const m = dataContas
-          .map((c: any) => ({ id: c.moeda_id, codigo: c.moeda_codigo }))
-          .filter(
-            (v: any, i: number, a: any[]) =>
-              a.findIndex((t: any) => t.id === v.id) === i
-          );
-        setMoedas(m);
-        if (m.length > 0 && !formAtivo.moeda_id) {
-          setFormAtivo(prev => ({ ...prev, moeda_id: m[0].id }));
+      setAtivos(Array.isArray(dataAtivos) ? dataAtivos : []);
+      setResumo(dataResumo || { total_aplicado: 0, total_rendimentos: 0, total_aportado: 0 });
+      if (dataMoedas && dataMoedas.length > 0) {
+        setMoedas(dataMoedas);
+        if (!formAtivo.moeda_id) {
+          const brl = dataMoedas.find(m => m.codigo === 'BRL') || dataMoedas[0];
+          setFormAtivo(prev => ({ ...prev, moeda_id: brl.id }));
         }
       }
     } catch (err) {

@@ -35,10 +35,18 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     throw new ApiError(data.error || 'Ocorreu um erro na requisição', response.status, data.details);
   }
 
+  // Se o backend tiver retornado { data: [...] } ou { data: { ... } } de forma envelopada
+  if (data && typeof data === 'object' && 'data' in data && Object.keys(data).length === 1) {
+    return data.data as T;
+  }
+
   return data as T;
 }
 
 export const api = {
+  // Moedas
+  getMoedas: () => request<Array<{ id: string; codigo: string; nome: string; simbolo: string }>>('/moedas'),
+
   // Auth
   getStatus: () => request<import('../types/index.js').AuthStatus>('/auth/status'),
   setup: (body: { login: string; senha: string }) => request<any>('/auth/setup', { method: 'POST', body: JSON.stringify(body) }),
@@ -166,7 +174,15 @@ export const api = {
   getMetricasSistema: () => request<{ data: import('../types/index.js').MetricasSistema }>('/sistema/stats'),
   baixarBackupSqlUrl: () => `${BASE_URL}/sistema/backup`,
 
-  // Fase 5: Relatórios CSV
+  // Fase 5: Relatórios & Dashboard Dinâmico
+  getDashboardRelatorios: (params?: { dataInicio?: string; dataFim?: string; contaId?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.dataInicio) q.append('data_inicio', params.dataInicio);
+    if (params?.dataFim) q.append('data_fim', params.dataFim);
+    if (params?.contaId) q.append('conta_id', params.contaId);
+    const qs = q.toString();
+    return request<any>(`/relatorios/dashboard${qs ? `?${qs}` : ''}`);
+  },
   getUrlCsvLancamentos: (dataInicio?: string, dataFim?: string, contaId?: string) => {
     const q = new URLSearchParams();
     if (dataInicio) q.append('data_inicio', dataInicio);
