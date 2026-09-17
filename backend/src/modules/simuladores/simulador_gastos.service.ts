@@ -36,7 +36,7 @@ export class SimuladorGastosService {
   async simular(dados: SimularGastoInput): Promise<ResultadoSimulacaoGasto> {
     // 1. Determina a cotação a ser utilizada
     let cotacao = 1.0;
-    const moedaUpper = dados.moeda_codigo.toUpperCase();
+    const moedaUpper = (dados.moeda_codigo || 'BRL').toUpperCase();
 
     if (moedaUpper !== 'BRL') {
       if (dados.cotacao_personalizada && dados.cotacao_personalizada > 0) {
@@ -104,14 +104,24 @@ export class SimuladorGastosService {
     }
 
     // Se for Cartão Parcelado:
+    let cartaoId = dados.cartao_id;
     let cartaoNome = 'Cartão de Crédito';
     let limiteTotal = 5000;
     let diaFechamento = 10;
     let diaVencimento = 20;
 
-    if (dados.cartao_id) {
-      const cardRes = await query('SELECT apelido, limite, dia_fechamento, dia_vencimento FROM cartao_credito WHERE id = $1', [dados.cartao_id]);
+    if (cartaoId) {
+      const cardRes = await query('SELECT id, apelido, limite, dia_fechamento, dia_vencimento FROM cartao_credito WHERE id = $1', [cartaoId]);
       if (cardRes.rows.length > 0) {
+        cartaoNome = cardRes.rows[0].apelido;
+        limiteTotal = parseFloat(cardRes.rows[0].limite);
+        diaFechamento = cardRes.rows[0].dia_fechamento;
+        diaVencimento = cardRes.rows[0].dia_vencimento;
+      }
+    } else {
+      const cardRes = await query('SELECT id, apelido, limite, dia_fechamento, dia_vencimento FROM cartao_credito WHERE ativo = TRUE ORDER BY criado_em ASC LIMIT 1');
+      if (cardRes.rows.length > 0) {
+        cartaoId = cardRes.rows[0].id;
         cartaoNome = cardRes.rows[0].apelido;
         limiteTotal = parseFloat(cardRes.rows[0].limite);
         diaFechamento = cardRes.rows[0].dia_fechamento;
@@ -120,12 +130,15 @@ export class SimuladorGastosService {
     }
 
     // Calcula limite utilizado atual
-    const utilRes = await query(`
-      SELECT COALESCE(SUM(l.valor), 0) AS total_utilizado
-      FROM lancamento l
-      WHERE l.cartao_id = $1 AND l.status = 'efetivado'
-    `, [dados.cartao_id]);
-    const limiteUtilizadoAtual = parseFloat(utilRes.rows[0]?.total_utilizado || '0');
+    let limiteUtilizadoAtual = 0;
+    if (cartaoId) {
+      const utilRes = await query(`
+        SELECT COALESCE(SUM(l.valor), 0) AS total_utilizado
+        FROM lancamento l
+        WHERE l.cartao_id = $1 AND l.status = 'efetivado'
+      `, [cartaoId]);
+      limiteUtilizadoAtual = parseFloat(utilRes.rows[0]?.total_utilizado || '0');
+    }
     const limiteDisponivelAtual = Math.max(0, limiteTotal - limiteUtilizadoAtual);
     const limiteDisponivelProjetado = Math.round((limiteDisponivelAtual - valorTotalBrl) * 100) / 100;
 
