@@ -1,15 +1,19 @@
 import { z } from 'zod';
 
-export const linkItemSchema = z.object({
-  url: z.string().url('URL inválida').or(z.string().min(1)),
-  loja: z.string().optional().default(''),
-});
-
 export const historicoPrecoItemSchema = z.object({
+  id: z.string().optional(),
   data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD').default(() => new Date().toISOString().split('T')[0]),
   preco: z.number().positive('Preço deve ser positivo'),
   loja: z.string().optional().default(''),
   observacao: z.string().optional().default(''),
+});
+
+export const linkItemSchema = z.object({
+  id: z.string().optional(),
+  url: z.string().url('URL inválida').or(z.string().min(1)),
+  loja: z.string().optional().default(''),
+  preco_atual: z.number().optional(),
+  historico_precos: z.array(historicoPrecoItemSchema).optional().default([]),
 });
 
 export const criarItemDesejoSchema = z.object({
@@ -28,7 +32,14 @@ export const criarItemDesejoSchema = z.object({
 
 export const atualizarItemDesejoSchema = criarItemDesejoSchema.partial();
 
-export const adicionarPrecoSchema = historicoPrecoItemSchema;
+export const adicionarPrecoSchema = z.object({
+  link_id: z.string().optional(),
+  link_url: z.string().optional(),
+  loja: z.string().optional().default(''),
+  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data no formato AAAA-MM-DD').default(() => new Date().toISOString().split('T')[0]),
+  preco: z.number().positive('Preço deve ser positivo'),
+  observacao: z.string().optional().default(''),
+});
 
 export const comprarItemDesejoSchema = z.object({
   conta_id: z.string().uuid().optional().nullable(),

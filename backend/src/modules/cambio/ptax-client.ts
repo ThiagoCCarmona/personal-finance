@@ -29,36 +29,87 @@ export class PtaxClient {
 
     let taxa: number | null = null;
 
-    // 1. Tenta AwesomeAPI
-    try {
-      const par = `${orig}-${dest}`;
-      const res = await fetch(`https://economia.awesomeapi.com.br/last/${par}`, {
-        signal: AbortSignal.timeout(4000),
-      });
-
-      if (res.ok) {
-        const json: any = await res.json();
-        const chave = `${orig}${dest}`;
-        if (json && json[chave]?.ask) {
-          taxa = Number(json[chave].ask);
-        }
-      } else if (res.status === 404) {
-        // Tenta inverso se não existir par direto
-        const parInv = `${dest}-${orig}`;
-        const resInv = await fetch(`https://economia.awesomeapi.com.br/last/${parInv}`, {
-          signal: AbortSignal.timeout(4000),
-        });
-        if (resInv.ok) {
-          const jsonInv: any = await resInv.json();
-          const chaveInv = `${dest}${orig}`;
-          if (jsonInv && jsonInv[chaveInv]?.ask) {
-            const v = Number(jsonInv[chaveInv].ask);
-            if (v > 0) taxa = 1 / v;
+    // Suporte direto e instantâneo para Bitcoin (BTC) via Binance API
+    if (orig === 'BTC' || dest === 'BTC') {
+      try {
+        if ((orig === 'BTC' && dest === 'BRL') || (orig === 'BRL' && dest === 'BTC')) {
+          const resB = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCBRL', {
+            signal: AbortSignal.timeout(4000)
+          });
+          if (resB.ok) {
+            const dataB: any = await resB.json();
+            const p = Number(dataB.price);
+            if (p > 0) {
+              taxa = orig === 'BTC' ? p : 1 / p;
+            }
+          }
+        } else if ((orig === 'BTC' && dest === 'USD') || (orig === 'USD' && dest === 'BTC')) {
+          const resB = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT', {
+            signal: AbortSignal.timeout(4000)
+          });
+          if (resB.ok) {
+            const dataB: any = await resB.json();
+            const p = Number(dataB.price);
+            if (p > 0) {
+              taxa = orig === 'BTC' ? p : 1 / p;
+            }
+          }
+        } else {
+          // BTC cruzado com outra moeda (ex: BTC -> EUR, BTC -> PYG, BTC -> CNY)
+          const resBtcBrl = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCBRL', {
+            signal: AbortSignal.timeout(4000)
+          });
+          if (resBtcBrl.ok) {
+            const dataB: any = await resBtcBrl.json();
+            const btcEmBrl = Number(dataB.price);
+            if (btcEmBrl > 0) {
+              if (orig === 'BTC') {
+                const taxaBrlDest = await this.buscarCotacaoAtual('BRL', dest);
+                if (taxaBrlDest && taxaBrlDest > 0) taxa = btcEmBrl * taxaBrlDest;
+              } else {
+                const taxaOrigBrl = await this.buscarCotacaoAtual(orig, 'BRL');
+                if (taxaOrigBrl && taxaOrigBrl > 0) taxa = taxaOrigBrl / btcEmBrl;
+              }
+            }
           }
         }
+      } catch {
+        // Segue para AwesomeAPI / Banco se a Binance falhar
       }
-    } catch {
-      // Ignora e vai para o fallback
+    }
+
+    // 1. Tenta AwesomeAPI se ainda não tiver taxa
+    if (!taxa) {
+      try {
+        const par = `${orig}-${dest}`;
+        const res = await fetch(`https://economia.awesomeapi.com.br/last/${par}`, {
+          signal: AbortSignal.timeout(4000),
+        });
+
+        if (res.ok) {
+          const json: any = await res.json();
+          const chave = `${orig}${dest}`;
+          if (json && json[chave]?.ask) {
+            taxa = Number(json[chave].ask);
+          }
+        } else if (res.status === 404) {
+          // Tenta inverso se não existir par direto
+          const parInv = `${dest}-${orig}`;
+          const resInv = await fetch(`https://economia.awesomeapi.com.br/last/${parInv}`, {
+            signal: AbortSignal.timeout(4000),
+          });
+          if (resInv.ok) {
+            const jsonInv: any = await resInv.json();
+            const chaveInv = `${dest}${orig}`;
+            if (jsonInv && jsonInv[chaveInv]?.ask) {
+              const v = Number(jsonInv[chaveInv].ask);
+              if (v > 0) taxa = 1 / v;
+            }
+          }
+        }
+      } catch {
+        // Ignora e vai para o fallback
+      }
     }
 
     // 2. Fallback robusto via Open Exchange Rates (open.er-api.com) se AwesomeAPI falhar ou der 429
@@ -247,9 +298,36 @@ export class PtaxClient {
       }
     }
 
-    // 3. Garante histórico para moedas favoritas
-    for (const m of moedas.slice(0, 4)) {
-      await this.buscarHistoricoDiarioAwesome(m.codigo, 30);
+    // 3. Garante cotação em tempo real de Bitcoin (BTC) via Binance API
+    const btcMoeda = moedas.find(m => m.codigo === 'BTC');
+    if (btcMoeda) {
+      try {
+        const resBinance = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCBRL', {
+          signal: AbortSignal.timeout(4000),
+        });
+        if (resBinance.ok) {
+          const jsonBtc: any = await resBinance.json();
+          const precoBtc = Number(jsonBtc.price);
+          if (precoBtc > 0) {
+            this.cache.set('BTC_BRL', { taxa: precoBtc, ts: Date.now() });
+            this.cache.set('BRL_BTC', { taxa: 1 / precoBtc, ts: Date.now() });
+            await query(
+              `INSERT INTO cotacao_cambio (moeda_id, data, valor_ptax, fonte)
+               VALUES ($1, $2, $3, 'Binance / Tempo Real')
+               ON CONFLICT (moeda_id, data) 
+               DO UPDATE SET valor_ptax = EXCLUDED.valor_ptax, fonte = EXCLUDED.fonte`,
+              [btcMoeda.id, hojeIso, precoBtc]
+            );
+          }
+        }
+      } catch (err) {
+        console.error('Aviso ao sincronizar BTC via Binance:', err);
+      }
+    }
+
+    // 4. Garante histórico para moedas favoritas
+    for (const m of moedas.slice(0, 5)) {
+      await this.buscarHistoricoDiarioAwesome(m.codigo, 14);
     }
   }
 }

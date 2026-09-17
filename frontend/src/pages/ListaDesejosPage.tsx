@@ -28,6 +28,8 @@ export const ListaDesejosPage: React.FC = () => {
   // Modal Histórico de Preços
   const [showModalHistorico, setShowModalHistorico] = useState(false);
   const [itemHistorico, setItemHistorico] = useState<ItemDesejo | null>(null);
+  const [abaLojaHistorico, setAbaLojaHistorico] = useState<string>('todas');
+  const [linkSelecionadoId, setLinkSelecionadoId] = useState<string>('');
   const [novoPrecoHistorico, setNovoPrecoHistorico] = useState('');
   const [novaLojaHistorico, setNovaLojaHistorico] = useState('');
   const [novaDataHistorico, setNovaDataHistorico] = useState(() => new Date().toISOString().split('T')[0]);
@@ -186,10 +188,16 @@ export const ListaDesejosPage: React.FC = () => {
     }
   };
 
-  const handleOpenHistorico = (item: ItemDesejo) => {
+  const handleOpenHistorico = (item: ItemDesejo, lojaInicial?: string) => {
     setItemHistorico(item);
-    setNovoPrecoHistorico(String(item.preco_estimado));
-    setNovaLojaHistorico(item.links?.[0]?.loja || '');
+    const linkAlvo = lojaInicial 
+      ? item.links?.find(l => l.loja?.toLowerCase() === lojaInicial.toLowerCase())
+      : item.links?.[0];
+
+    setAbaLojaHistorico(lojaInicial || 'todas');
+    setLinkSelecionadoId(linkAlvo?.id || '');
+    setNovaLojaHistorico(linkAlvo?.loja || lojaInicial || '');
+    setNovoPrecoHistorico(linkAlvo?.preco_atual ? String(linkAlvo.preco_atual) : String(item.preco_estimado));
     setNovaDataHistorico(new Date().toISOString().split('T')[0]);
     setNovaObsHistorico('');
     setShowModalHistorico(true);
@@ -205,9 +213,12 @@ export const ListaDesejosPage: React.FC = () => {
     }
     try {
       setSalvandoPreco(true);
+      const linkCorrespondente = itemHistorico.links?.find(l => l.id === linkSelecionadoId || l.loja?.toLowerCase() === novaLojaHistorico?.toLowerCase());
       const atualizado = await api.adicionarPrecoItemDesejo(itemHistorico.id, {
+        link_id: linkCorrespondente?.id || linkSelecionadoId || undefined,
+        link_url: linkCorrespondente?.url || undefined,
         preco: p,
-        loja: novaLojaHistorico.trim() || undefined,
+        loja: novaLojaHistorico.trim() || linkCorrespondente?.loja || undefined,
         data: novaDataHistorico || undefined,
         observacao: novaObsHistorico.trim() || undefined,
       });
@@ -477,21 +488,38 @@ export const ListaDesejosPage: React.FC = () => {
                   </div>
 
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 mt-3 border-t border-slate-800/80">
-                    {/* Links de Lojas */}
+                    {/* Links de Lojas com Preço Individual */}
                     <div className="flex items-center gap-2 flex-wrap">
                       {item.links && item.links.length > 0 ? (
                         item.links.map((lnk, lIdx) => (
-                          <a
-                            key={lIdx}
-                            href={lnk.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs font-semibold text-pink-400 hover:text-pink-300 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 px-2 py-1 rounded-lg transition"
+                          <div 
+                            key={lnk.id || lIdx}
+                            className="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 rounded-lg px-2 py-1"
                           >
-                            <Store size={12} />
-                            <span>{lnk.loja || `Loja ${lIdx + 1}`}</span>
-                            <ExternalLink size={11} />
-                          </a>
+                            <a
+                              href={lnk.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs font-semibold text-pink-400 hover:text-pink-300 transition"
+                            >
+                              <Store size={12} />
+                              <span>{lnk.loja || `Loja ${lIdx + 1}`}</span>
+                              <ExternalLink size={10} />
+                            </a>
+                            {lnk.preco_atual ? (
+                              <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60">
+                                R$ {Number(lnk.preco_atual).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </span>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenHistorico(item, lnk.id || lnk.loja)}
+                              className="text-slate-500 hover:text-amber-400 transition ml-0.5"
+                              title={`Ver histórico de preços para ${lnk.loja || 'este link'}`}
+                            >
+                              <History size={11} />
+                            </button>
+                          </div>
                         ))
                       ) : item.link ? (
                         <a
@@ -885,11 +913,85 @@ export const ListaDesejosPage: React.FC = () => {
               </button>
             </div>
 
+            {/* Abas por Loja / Link */}
+            {itemHistorico.links && itemHistorico.links.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAbaLojaHistorico('todas');
+                    setLinkSelecionadoId('');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                    abaLojaHistorico === 'todas'
+                      ? 'bg-amber-500 text-slate-950 font-bold'
+                      : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                  }`}
+                >
+                  Todas as Lojas
+                </button>
+                {itemHistorico.links.map((lnk, idx) => {
+                  const idOuNome = lnk.id || lnk.loja || String(idx);
+                  const isAtivo = abaLojaHistorico === idOuNome || (lnk.loja && abaLojaHistorico === lnk.loja);
+                  return (
+                    <button
+                      key={idOuNome}
+                      type="button"
+                      onClick={() => {
+                        setAbaLojaHistorico(idOuNome);
+                        setLinkSelecionadoId(lnk.id || '');
+                        if (lnk.loja) setNovaLojaHistorico(lnk.loja);
+                        if (lnk.preco_atual) setNovoPrecoHistorico(String(lnk.preco_atual));
+                      }}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition border ${
+                        isAtivo
+                          ? 'bg-pink-600 text-white border-pink-500'
+                          : 'bg-slate-950 text-slate-400 hover:text-slate-200 border-slate-800'
+                      }`}
+                    >
+                      <Store size={12} />
+                      <span>{lnk.loja || `Link ${idx + 1}`}</span>
+                      {lnk.preco_atual ? (
+                        <span className="text-[10px] bg-black/30 px-1 py-0.2 rounded font-bold">
+                          R$ {Number(lnk.preco_atual).toFixed(0)}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Formulário: Registrar nova cotação de preço */}
             <form onSubmit={handleSalvarNovoPreco} className="p-4 bg-slate-950/70 rounded-xl border border-slate-800 space-y-3">
               <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
                 Registrar Novo Preço / Promoção
               </span>
+
+              {itemHistorico.links && itemHistorico.links.length > 0 && (
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Vincular a qual Link / Loja?</label>
+                  <select
+                    value={linkSelecionadoId}
+                    onChange={e => {
+                      const id = e.target.value;
+                      setLinkSelecionadoId(id);
+                      const l = itemHistorico.links?.find(x => x.id === id);
+                      if (l?.loja) setNovaLojaHistorico(l.loja);
+                      if (l?.preco_atual) setNovoPrecoHistorico(String(l.preco_atual));
+                    }}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                  >
+                    <option value="">Geral / Item todo</option>
+                    {itemHistorico.links.map((l, idx) => (
+                      <option key={l.id || idx} value={l.id || ''}>
+                        {l.loja || `Link ${idx + 1}`} — {l.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 32)}...
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-400 mb-1">Preço Atual (R$) *</label>
@@ -950,64 +1052,91 @@ export const ListaDesejosPage: React.FC = () => {
 
             {/* Listagem do Histórico */}
             <div className="space-y-2">
-              <span className="text-xs font-semibold text-slate-400">
-                Evolução das Cotações ({itemHistorico.historico_precos?.length || 1} registros)
-              </span>
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+                <span>
+                  Evolução das Cotações ({
+                    itemHistorico.historico_precos?.filter(h => {
+                      if (abaLojaHistorico === 'todas') return true;
+                      return h.link_id === abaLojaHistorico || h.loja?.toLowerCase() === abaLojaHistorico.toLowerCase();
+                    }).length || 0
+                  } registros)
+                </span>
+                {abaLojaHistorico !== 'todas' && (
+                  <button
+                    type="button"
+                    onClick={() => setAbaLojaHistorico('todas')}
+                    className="text-[11px] text-amber-400 hover:underline"
+                  >
+                    Ver todas
+                  </button>
+                )}
+              </div>
 
-              {(!itemHistorico.historico_precos || itemHistorico.historico_precos.length === 0) ? (
-                <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-800 text-center text-xs text-slate-500">
-                  Apenas o preço estimado inicial de R$ {Number(itemHistorico.preco_estimado).toFixed(2)} registrado.
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {[...itemHistorico.historico_precos].reverse().map((h, hIdx, arr) => {
-                    const proxReg = arr[hIdx + 1];
-                    let variacao: number | null = null;
-                    if (proxReg && proxReg.preco > 0) {
-                      variacao = ((h.preco - proxReg.preco) / proxReg.preco) * 100;
-                    }
+              {(() => {
+                const listaFiltrada = (itemHistorico.historico_precos || []).filter(h => {
+                  if (abaLojaHistorico === 'todas') return true;
+                  return h.link_id === abaLojaHistorico || (h.loja && h.loja.toLowerCase() === abaLojaHistorico.toLowerCase());
+                });
 
-                    return (
-                      <div
-                        key={hIdx}
-                        className="p-3 bg-slate-950/50 rounded-xl border border-slate-800 flex items-center justify-between gap-3 text-xs"
-                      >
-                        <div className="space-y-0.5 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-slate-300">
-                              {new Date(h.data + 'T12:00:00Z').toLocaleDateString('pt-BR')}
-                            </span>
-                            {h.loja && (
-                              <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-pink-300 border border-slate-700">
-                                {h.loja}
+                if (listaFiltrada.length === 0) {
+                  return (
+                    <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-800 text-center text-xs text-slate-500">
+                      Nenhuma cotação registrada para este filtro. Adicione uma nova cotação acima!
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {[...listaFiltrada].reverse().map((h, hIdx, arr) => {
+                      const proxReg = arr[hIdx + 1];
+                      let variacao: number | null = null;
+                      if (proxReg && proxReg.preco > 0) {
+                        variacao = ((h.preco - proxReg.preco) / proxReg.preco) * 100;
+                      }
+
+                      return (
+                        <div
+                          key={hIdx}
+                          className="p-3 bg-slate-950/50 rounded-xl border border-slate-800 flex items-center justify-between gap-3 text-xs"
+                        >
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-300">
+                                {new Date(h.data + 'T12:00:00Z').toLocaleDateString('pt-BR')}
                               </span>
+                              {h.loja && (
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-pink-300 border border-slate-700">
+                                  {h.loja}
+                                </span>
+                              )}
+                            </div>
+                            {h.observacao && (
+                              <p className="text-[11px] text-slate-400 truncate">
+                                {h.observacao}
+                              </p>
                             )}
                           </div>
-                          {h.observacao && (
-                            <p className="text-[11px] text-slate-400 truncate">
-                              {h.observacao}
-                            </p>
-                          )}
-                        </div>
 
-                        <div className="text-right shrink-0">
-                          <div className="font-bold text-slate-100 text-sm">
-                            R$ {Number(h.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </div>
-                          {variacao !== null && (
-                            <div className={`text-[10px] font-semibold flex items-center justify-end gap-0.5 ${
-                              variacao < 0 ? 'text-emerald-400' : variacao > 0 ? 'text-rose-400' : 'text-slate-400'
-                            }`}>
-                              {variacao < 0 ? <TrendingDown size={11} /> : variacao > 0 ? <TrendingUp size={11} /> : null}
-                              <span>{variacao > 0 ? '+' : ''}{variacao.toFixed(1)}%</span>
+                          <div className="text-right shrink-0">
+                            <div className="font-bold text-slate-100 text-sm">
+                              R$ {Number(h.preco).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
-                          )}
+                            {variacao !== null && (
+                              <div className={`text-[10px] font-semibold flex items-center justify-end gap-0.5 ${
+                                variacao < 0 ? 'text-emerald-400' : variacao > 0 ? 'text-rose-400' : 'text-slate-400'
+                              }`}>
+                                {variacao < 0 ? <TrendingDown size={11} /> : variacao > 0 ? <TrendingUp size={11} /> : null}
+                                <span>{variacao > 0 ? '+' : ''}{variacao.toFixed(1)}%</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="flex justify-end pt-2 border-t border-slate-800">

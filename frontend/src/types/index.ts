@@ -445,16 +445,20 @@ export interface MetricasSistema {
   data_hora_servidor: string;
 }
 
-export interface ItemDesejoLink {
-  url: string;
-  loja?: string;
-}
-
 export interface ItemDesejoHistoricoPreco {
+  id?: string;
   data: string;
   preco: number;
   loja?: string;
   observacao?: string;
+}
+
+export interface ItemDesejoLink {
+  id?: string;
+  url: string;
+  loja?: string;
+  preco_atual?: number;
+  historico_precos?: ItemDesejoHistoricoPreco[];
 }
 
 export interface ItemDesejo {

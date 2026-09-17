@@ -37,7 +37,7 @@ interface MoedaInfo {
 export const CambioPage: React.FC = () => {
   const [moedas, setMoedas] = useState<MoedaInfo[]>([]);
   const [moeda, setMoeda] = useState<string>('USD');
-  const [dias, setDias] = useState<number>(30);
+  const [dias] = useState<number>(7); // Janela fixa em 7 dias conforme solicitado
   const [historico, setHistorico] = useState<HistoricoCambio | null>(null);
   const [loading, setLoading] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
@@ -218,13 +218,14 @@ export const CambioPage: React.FC = () => {
                   <option value="USD">USD — Dólar Americano</option>
                   <option value="EUR">EUR — Euro</option>
                   <option value="BRL">BRL — Real Brasileiro</option>
+                  <option value="BTC">BTC — Bitcoin</option>
+                  <option value="CNY">CNY — Yuan Chinês (¥)</option>
                   <option value="ARS">ARS — Peso Argentino</option>
                   <option value="PYG">PYG — Guarani Paraguaio</option>
                   <option value="GBP">GBP — Libra Esterlina</option>
                   <option value="CAD">CAD — Dólar Canadense</option>
                   <option value="CHF">CHF — Franco Suíço</option>
                   <option value="JPY">JPY — Iene Japonês</option>
-                  <option value="BTC">BTC — Bitcoin</option>
                 </>
               )}
             </select>
@@ -261,13 +262,14 @@ export const CambioPage: React.FC = () => {
                   <option value="BRL">BRL — Real Brasileiro</option>
                   <option value="USD">USD — Dólar Americano</option>
                   <option value="EUR">EUR — Euro</option>
+                  <option value="BTC">BTC — Bitcoin</option>
+                  <option value="CNY">CNY — Yuan Chinês (¥)</option>
                   <option value="ARS">ARS — Peso Argentino</option>
                   <option value="PYG">PYG — Guarani Paraguaio</option>
                   <option value="GBP">GBP — Libra Esterlina</option>
                   <option value="CAD">CAD — Dólar Canadense</option>
                   <option value="CHF">CHF — Franco Suíço</option>
                   <option value="JPY">JPY — Iene Japonês</option>
-                  <option value="BTC">BTC — Bitcoin</option>
                 </>
               )}
             </select>
@@ -282,8 +284,8 @@ export const CambioPage: React.FC = () => {
               ) : resultadoConv ? (
                 <span>
                   {resultadoConv.valor_convertido.toLocaleString('pt-BR', { 
-                    minimumFractionDigits: calcPara === 'PYG' ? 0 : 2, 
-                    maximumFractionDigits: calcPara === 'PYG' ? 0 : 4 
+                    minimumFractionDigits: calcPara === 'PYG' ? 0 : (calcPara === 'BTC' ? 4 : 2), 
+                    maximumFractionDigits: calcPara === 'PYG' ? 0 : (calcPara === 'BTC' ? 8 : 4) 
                   })} {calcPara}
                 </span>
               ) : (
@@ -292,7 +294,7 @@ export const CambioPage: React.FC = () => {
             </div>
             {resultadoConv && (
               <span className="text-[10px] text-slate-500 block">
-                1 {calcDe} = {resultadoConv.cotacao < 0.01 ? resultadoConv.cotacao.toFixed(6) : resultadoConv.cotacao.toFixed(4)} {calcPara}
+                1 {calcDe} = {resultadoConv.cotacao < 0.0001 ? resultadoConv.cotacao.toFixed(8) : (resultadoConv.cotacao < 0.01 ? resultadoConv.cotacao.toFixed(6) : resultadoConv.cotacao.toFixed(4))} {calcPara}
               </span>
             )}
           </div>
@@ -416,21 +418,16 @@ export const CambioPage: React.FC = () => {
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
           <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Janela do Gráfico</span>
-          <div className="flex flex-wrap gap-1 mt-2">
-            {[7, 30, 60, 90, 180, 365].map(d => (
-              <button
-                key={d}
-                onClick={() => setDias(d)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-                  dias === d
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-950 text-slate-400 border border-slate-800 hover:bg-slate-800'
-                }`}
-              >
-                {d < 365 ? `${d}D` : '1 ANO'}
-              </button>
-            ))}
+          <div className="mt-2 flex items-center justify-between">
+            <span className="text-lg font-bold text-slate-100 flex items-center gap-1.5">
+              <Calendar size={18} className="text-blue-400" />
+              7 Dias
+            </span>
+            <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 font-semibold">
+              Semanal Fixo
+            </span>
           </div>
+          <span className="text-xs text-slate-400 mt-1 block">Visualização consolidada recente</span>
         </div>
       </div>
 
@@ -439,9 +436,9 @@ export const CambioPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
             <Calendar size={16} className="text-slate-400" />
-            <span>Histórico Diário — {moeda} / BRL ({dias} dias)</span>
+            <span>Histórico dos Últimos 7 Dias — {moeda} / BRL</span>
           </h3>
-          <span className="text-xs text-slate-500 font-mono">Fonte: AwesomeAPI Diária</span>
+          <span className="text-xs text-slate-500 font-mono">Cotações Oficiais Diárias</span>
         </div>
 
         <div className="h-72 w-full">

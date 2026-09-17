@@ -10,7 +10,8 @@ const PrivacyContext = createContext<PrivacyContextType>({} as PrivacyContextTyp
 
 export const PrivacyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isPrivate, setIsPrivate] = useState<boolean>(() => {
-    return localStorage.getItem('financeiro_privacy_mode') === 'true';
+    const saved = localStorage.getItem('financeiro_privacy_mode');
+    return saved === null ? true : saved === 'true';
   });
 
   useEffect(() => {

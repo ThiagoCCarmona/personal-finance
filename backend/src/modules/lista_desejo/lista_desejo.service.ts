@@ -84,15 +84,29 @@ export class ListaDesejoService {
   async criar(dados: CriarItemDesejoInput): Promise<ItemDesejo> {
     const hoje = new Date().toISOString().split('T')[0];
 
-    // Normaliza links
-    let linksFinal: Array<{ url: string; loja?: string }> = [];
+    // Normaliza links com ID único e histórico individual de preços
+    let linksFinal: Array<any> = [];
     if (Array.isArray(dados.links) && dados.links.length > 0) {
-      linksFinal = dados.links;
+      linksFinal = dados.links.map(l => ({
+        id: l.id || crypto.randomUUID(),
+        url: l.url,
+        loja: l.loja || '',
+        preco_atual: l.preco_atual || dados.preco_estimado,
+        historico_precos: Array.isArray(l.historico_precos) && l.historico_precos.length > 0
+          ? l.historico_precos
+          : [{ data: hoje, preco: dados.preco_estimado, observacao: 'Preço inicial cadastrado' }]
+      }));
     } else if (dados.link) {
-      linksFinal = [{ url: dados.link, loja: 'Loja Principal' }];
+      linksFinal = [{
+        id: crypto.randomUUID(),
+        url: dados.link,
+        loja: 'Loja Principal',
+        preco_atual: dados.preco_estimado,
+        historico_precos: [{ data: hoje, preco: dados.preco_estimado, observacao: 'Preço inicial cadastrado' }]
+      }];
     }
 
-    // Normaliza histórico de preços
+    // Normaliza histórico geral de preços
     let historicoFinal: Array<{ data: string; preco: number; loja?: string; observacao?: string }> = [];
     if (Array.isArray(dados.historico_precos) && dados.historico_precos.length > 0) {
       historicoFinal = dados.historico_precos;
@@ -154,26 +168,61 @@ export class ListaDesejoService {
     return this.getById(id);
   }
 
-  async adicionarPrecoHistorico(id: string, entrada: { data?: string; preco: number; loja?: string; observacao?: string }): Promise<ItemDesejo> {
+  async adicionarPrecoHistorico(id: string, entrada: { link_id?: string; link_url?: string; data?: string; preco: number; loja?: string; observacao?: string }): Promise<ItemDesejo> {
     const item = await this.getById(id);
     if (!item) throw new Error('Item não encontrado');
 
     const hoje = new Date().toISOString().split('T')[0];
+    const precoNum = Number(entrada.preco);
     const novoRegistro = {
+      id: crypto.randomUUID(),
       data: entrada.data || hoje,
-      preco: Number(entrada.preco),
+      preco: precoNum,
       loja: entrada.loja || '',
       observacao: entrada.observacao || ''
     };
 
+    // 1. Atualiza histórico geral
     const historicoAtual = Array.isArray(item.historico_precos) ? [...item.historico_precos] : [];
     historicoAtual.push(novoRegistro);
 
+    // 2. Atualiza o histórico específico do link correspondente
+    const linksAtuais: any[] = Array.isArray(item.links) ? [...item.links] : [];
+    if (linksAtuais.length > 0) {
+      let indexLink = -1;
+      if (entrada.link_id) {
+        indexLink = linksAtuais.findIndex(l => l.id === entrada.link_id);
+      }
+      if (indexLink === -1 && entrada.loja) {
+        indexLink = linksAtuais.findIndex(l => l.loja?.toLowerCase() === entrada.loja?.toLowerCase());
+      }
+      if (indexLink === -1 && entrada.link_url) {
+        indexLink = linksAtuais.findIndex(l => l.url === entrada.link_url);
+      }
+      if (indexLink === -1 && linksAtuais.length === 1) {
+        indexLink = 0;
+      }
+
+      if (indexLink !== -1) {
+        const linkAlvo = { ...linksAtuais[indexLink] };
+        const histLink = Array.isArray(linkAlvo.historico_precos) ? [...linkAlvo.historico_precos] : [];
+        histLink.push({
+          data: entrada.data || hoje,
+          preco: precoNum,
+          observacao: entrada.observacao || ''
+        });
+        linkAlvo.historico_precos = histLink;
+        linkAlvo.preco_atual = precoNum;
+        if (!linkAlvo.id) linkAlvo.id = crypto.randomUUID();
+        linksAtuais[indexLink] = linkAlvo;
+      }
+    }
+
     await query(`
       UPDATE lista_desejo 
-      SET historico_precos = $1, preco_estimado = $2, atualizado_em = NOW() 
-      WHERE id = $3
-    `, [JSON.stringify(historicoAtual), entrada.preco, id]);
+      SET historico_precos = $1, links = $2, preco_estimado = $3, atualizado_em = NOW() 
+      WHERE id = $4
+    `, [JSON.stringify(historicoAtual), JSON.stringify(linksAtuais), precoNum, id]);
 
     return this.getById(id) as Promise<ItemDesejo>;
   }
