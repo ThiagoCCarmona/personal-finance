@@ -172,6 +172,34 @@ export class CambioService {
       }
     }
 
+    // 3. Fallback para última cotação persistida no banco de dados (resiliência total)
+    if (!cotacao) {
+      const getCotacaoBanco = async (codigo: string): Promise<number | null> => {
+        const { rows } = await query(
+          `SELECT c.valor_ptax 
+           FROM cotacao_cambio c
+           JOIN moeda m ON m.id = c.moeda_id
+           WHERE m.codigo = $1
+           ORDER BY c.data DESC LIMIT 1`,
+          [codigo]
+        );
+        return rows[0] ? Number(rows[0].valor_ptax) : null;
+      };
+
+      if (orig === 'BRL') {
+        const cotDest = await getCotacaoBanco(dest);
+        if (cotDest && cotDest > 0) cotacao = 1 / cotDest;
+      } else if (dest === 'BRL') {
+        cotacao = await getCotacaoBanco(orig);
+      } else {
+        const cotOrig = await getCotacaoBanco(orig);
+        const cotDest = await getCotacaoBanco(dest);
+        if (cotOrig && cotDest && cotDest > 0) {
+          cotacao = cotOrig / cotDest;
+        }
+      }
+    }
+
     const taxaFinal = cotacao || 1;
     const valorConvertido = Math.round(v * taxaFinal * 10000) / 10000;
 
