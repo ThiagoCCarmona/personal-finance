@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, HandCoins, UserPlus, Receipt, 
-  CheckCircle, Ban, AlertCircle, QrCode, Trash2, Edit2, Copy, Check, X
+  CheckCircle, Ban, QrCode, Trash2, Edit2, Copy, Check, X
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Pessoa, Divida, ResumoDividas, Conta, ChavePix, DespesaCompartilhada } from '../types';
