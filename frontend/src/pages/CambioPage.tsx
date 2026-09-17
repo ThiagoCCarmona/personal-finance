@@ -149,7 +149,6 @@ export const CambioPage: React.FC = () => {
 
   const moedaAtualInfo = moedas.find(m => m.codigo === moeda);
   const moedasFavoritas = moedas.filter(m => m.favorita && m.codigo !== 'BRL');
-  const moedasNaoFavoritas = moedas.filter(m => !m.favorita && m.codigo !== 'BRL');
 
   return (
     <div className="space-y-6">
