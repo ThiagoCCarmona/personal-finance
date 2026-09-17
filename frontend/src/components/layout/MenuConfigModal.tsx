@@ -5,8 +5,7 @@ import {
   ArrowDown, 
   RotateCcw, 
   Check, 
-  Sliders, 
-  GripVertical 
+  Sliders
 } from 'lucide-react';
 import { 
   getOrderedNavItems, 

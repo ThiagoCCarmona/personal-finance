@@ -191,10 +191,15 @@ export const api = {
     const qs = q.toString();
     return request<any>(`/relatorios/dashboard${qs ? `?${qs}` : ''}`);
   },
-  // Instituições CRUD
-  createInstituicao: (body: any) => request<import('../types/index.js').Instituicao>('/instituicoes', { method: 'POST', body: JSON.stringify(body) }),
-  updateInstituicao: (id: string, body: any) => request<import('../types/index.js').Instituicao>(`/instituicoes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
-  deleteInstituicao: (id: string) => request<any>(`/instituicoes/${id}`, { method: 'DELETE' }),
+  getUrlCsvLancamentos: (dataInicio?: string, dataFim?: string, contaId?: string) => {
+    const q = new URLSearchParams();
+    if (dataInicio) q.append('data_inicio', dataInicio);
+    if (dataFim) q.append('data_fim', dataFim);
+    if (contaId) q.append('conta_id', contaId);
+    const qs = q.toString();
+    return `${BASE_URL}/relatorios/lancamentos/csv${qs ? `?${qs}` : ''}`;
+  },
+  getUrlCsvPatrimonio: () => `${BASE_URL}/relatorios/patrimonio/csv`,
 
   // Câmbio AwesomeAPI & Conversor
   getMoedasCambio: () => request<Array<{ id: string; codigo: string; nome: string; simbolo: string; favorita: boolean; ultima_cotacao_brl?: number }>>('/cambio/moedas'),

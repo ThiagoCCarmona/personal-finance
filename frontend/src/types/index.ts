@@ -177,6 +177,7 @@ export interface ContasAPagarResumo {
   recorrencias: Array<{
     id: string;
     descricao: string;
+    tipo?: 'despesa' | 'receita';
     valor: number;
     dia_referencia: number;
     data_vencimento: string;

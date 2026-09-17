@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Heart, Plus, ExternalLink, CheckCircle2, Clock, Trash2, Edit2, 
-  Search, ShoppingBag, Sparkles, AlertCircle, ArrowUpRight, DollarSign 
+  Search, ShoppingBag, Sparkles 
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { ItemDesejo, Categoria, Conta, CartaoCredito } from '../types/index.js';

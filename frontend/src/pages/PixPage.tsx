@@ -600,7 +600,7 @@ export const PixPage: React.FC = () => {
                   <option value="">Selecione uma conta...</option>
                   {contas.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.nome} ({c.instituicao_nome || 'Conta'}) — Saldo atual: R$ {Number(c.saldo_atual || 0).toFixed(2)}
+                      {c.apelido} ({c.instituicao_nome || 'Conta'}) — Saldo atual: R$ {Number(c.saldo_atual || 0).toFixed(2)}
                     </option>
                   ))}
                 </select>
