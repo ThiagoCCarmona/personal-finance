@@ -96,11 +96,12 @@ export const InvestimentosPage: React.FC = () => {
 
   const handleEditarAtivo = (ativo: PosicaoAtivo) => {
     setEditingAtivoId(ativo.id);
+    const m = moedas.find(item => item.codigo === ativo.moeda_codigo);
     setFormAtivo({
       tipo: ativo.tipo,
       nome: ativo.nome,
       ticker: ativo.ticker || '',
-      moeda_id: ativo.moeda_id || (moedas[0]?.id || ''),
+      moeda_id: m ? m.id : (moedas[0]?.id || ''),
       instituicao: ativo.instituicao || '',
       indexador: ativo.indexador || '',
       taxa_anual: ativo.taxa_anual ? String(ativo.taxa_anual) : '',
