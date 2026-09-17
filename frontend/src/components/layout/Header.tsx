@@ -56,10 +56,22 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMenu }) => {
 
         {/* Informações do Usuário e Logout */}
         {user && (
-          <div className="flex items-center gap-3 pl-2 sm:border-l sm:border-slate-800">
-            <span className="hidden md:inline text-xs text-slate-400">
-              Olá, <strong className="text-slate-200">{user.login}</strong>
-            </span>
+          <div className="flex items-center gap-2.5 pl-2 sm:border-l sm:border-slate-800">
+            <div className="hidden md:flex flex-col items-end">
+              <div className="flex items-center gap-1.5">
+                <strong className="text-xs text-slate-200">{user.nome || user.login}</strong>
+                {user.role === 'admin' ? (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    Admin
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-400">
+                    Usuário
+                  </span>
+                )}
+              </div>
+              {user.nome && <span className="text-[10px] text-slate-500">@{user.login}</span>}
+            </div>
             <button
               type="button"
               onClick={logout}

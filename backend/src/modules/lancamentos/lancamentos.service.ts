@@ -3,9 +3,9 @@ import { LancamentoFilter, LancamentoInput } from './lancamentos.schemas.js';
 import { calcularCompetenciaFatura } from '../../utils/fatura.utils.js';
 
 export class LancamentosService {
-  async listAll(filters: LancamentoFilter) {
-    let whereClauses: string[] = ['1=1'];
-    const params: any[] = [];
+  async listAll(userId: string, filters: LancamentoFilter) {
+    let whereClauses: string[] = ['l.usuario_id = $1'];
+    const params: any[] = [userId];
 
     if (filters.dataInicio) {
       params.push(filters.dataInicio);
@@ -97,7 +97,7 @@ export class LancamentosService {
     };
   }
 
-  async getById(id: string) {
+  async getById(id: string, userId: string) {
     const { rows } = await query(
       `SELECT 
         l.*,
@@ -112,14 +112,32 @@ export class LancamentosService {
       JOIN categoria cat ON cat.id = l.categoria_id
       LEFT JOIN categoria subcat ON subcat.id = l.subcategoria_id
       JOIN moeda m ON m.id = l.moeda_id
-      WHERE l.id = $1`,
-      [id]
+      WHERE l.id = $1 AND l.usuario_id = $2`,
+      [id, userId]
     );
     return rows[0] || null;
   }
 
-  async create(input: LancamentoInput) {
+  async create(userId: string, input: LancamentoInput) {
     return withTransaction(async (client) => {
+      // Validação IDOR: se informou conta_id, checa se pertence ao usuário
+      if (input.conta_id) {
+        const { rows: cRows } = await client.query(
+          'SELECT id, moeda_id FROM conta WHERE id = $1 AND usuario_id = $2',
+          [input.conta_id, userId]
+        );
+        if (cRows.length === 0) throw new Error('Conta bancária não encontrada ou não autorizada.');
+      }
+
+      // Validação IDOR: se informou cartao_id, checa se pertence ao usuário
+      if (input.cartao_id) {
+        const { rows: kRows } = await client.query(
+          'SELECT id FROM cartao_credito WHERE id = $1 AND usuario_id = $2',
+          [input.cartao_id, userId]
+        );
+        if (kRows.length === 0) throw new Error('Cartão de crédito não encontrado ou não autorizado.');
+      }
+
       // 1. Validar forma de pagamento e moeda
       let moedaId = input.moeda_id;
       if (!moedaId) {
@@ -147,17 +165,18 @@ export class LancamentosService {
         }
       }
 
-      // 3. Inserir o lançamento
+      // 3. Inserir o lançamento com usuario_id
       const { rows } = await client.query(
         `INSERT INTO lancamento (
-          tipo, valor, moeda_id, data_compra, data_competencia_fatura,
+          usuario_id, tipo, valor, moeda_id, data_compra, data_competencia_fatura,
           forma_pagamento, conta_id, cartao_id, categoria_id, subcategoria_id,
           descricao, anexo_url, recorrencia_id, compra_parcelada_id,
           numero_parcela, total_parcelas, status
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *`,
         [
+          userId,
           input.tipo,
           input.valor,
           moedaId,
@@ -184,8 +203,8 @@ export class LancamentosService {
       if (input.status === 'efetivado' && input.conta_id) {
         const delta = input.tipo === 'receita' ? input.valor : -input.valor;
         await client.query(
-          'UPDATE conta SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() WHERE id = $2',
-          [delta, input.conta_id]
+          'UPDATE conta SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() WHERE id = $2 AND usuario_id = $3',
+          [delta, input.conta_id, userId]
         );
       }
 
@@ -195,17 +214,16 @@ export class LancamentosService {
         const despesaDelta = input.tipo === 'despesa' ? input.valor : 0;
         const receitaDelta = input.tipo === 'receita' ? input.valor : 0;
 
-        // Se tiver conta_id, agrega por conta; se for apenas cartão, usa a agregação de categoria
         if (input.conta_id) {
           await client.query(
-            `INSERT INTO resumo_mensal (ano_mes, categoria_id, conta_id, total_despesas, total_receitas)
-             VALUES ($1, $2, $3, $4, $5)
+            `INSERT INTO resumo_mensal (usuario_id, ano_mes, categoria_id, conta_id, total_despesas, total_receitas)
+             VALUES ($1, $2, $3, $4, $5, $6)
              ON CONFLICT (ano_mes, categoria_id, conta_id)
              DO UPDATE SET 
                total_despesas = resumo_mensal.total_despesas + EXCLUDED.total_despesas,
                total_receitas = resumo_mensal.total_receitas + EXCLUDED.total_receitas,
                atualizado_em = NOW()`,
-            [anoMes, input.categoria_id, input.conta_id, despesaDelta, receitaDelta]
+            [userId, anoMes, input.categoria_id, input.conta_id, despesaDelta, receitaDelta]
           );
         }
       }
@@ -214,12 +232,12 @@ export class LancamentosService {
     });
   }
 
-  async update(id: string, input: LancamentoInput) {
+  async update(id: string, userId: string, input: LancamentoInput) {
     return withTransaction(async (client) => {
-      // 1. Obter registro atual com lock
+      // 1. Obter registro atual com lock garantindo usuario_id
       const { rows: currentRows } = await client.query(
-        'SELECT * FROM lancamento WHERE id = $1 FOR UPDATE',
-        [id]
+        'SELECT * FROM lancamento WHERE id = $1 AND usuario_id = $2 FOR UPDATE',
+        [id, userId]
       );
       if (currentRows.length === 0) throw new Error('Lançamento não encontrado');
       const antigo = currentRows[0];
@@ -228,8 +246,8 @@ export class LancamentosService {
       if (antigo.status === 'efetivado' && antigo.conta_id) {
         const revertDelta = antigo.tipo === 'receita' ? -parseFloat(antigo.valor) : parseFloat(antigo.valor);
         await client.query(
-          'UPDATE conta SET saldo_atual = saldo_atual + $1 WHERE id = $2',
-          [revertDelta, antigo.conta_id]
+          'UPDATE conta SET saldo_atual = saldo_atual + $1 WHERE id = $2 AND usuario_id = $3',
+          [revertDelta, antigo.conta_id, userId]
         );
 
         const anoMesAntigo = (antigo.data_competencia_fatura || antigo.data_compra).toISOString ? (antigo.data_competencia_fatura || antigo.data_compra).toISOString().substring(0, 7) : String(antigo.data_competencia_fatura || antigo.data_compra).substring(0, 7);
@@ -241,8 +259,8 @@ export class LancamentosService {
            SET total_despesas = GREATEST(0, total_despesas - $1),
                total_receitas = GREATEST(0, total_receitas - $2),
                atualizado_em = NOW()
-           WHERE ano_mes = $3 AND categoria_id = $4 AND conta_id = $5`,
-          [revertDespesa, revertReceita, anoMesAntigo, antigo.categoria_id, antigo.conta_id]
+           WHERE ano_mes = $3 AND categoria_id = $4 AND conta_id = $5 AND usuario_id = $6`,
+          [revertDespesa, revertReceita, anoMesAntigo, antigo.categoria_id, antigo.conta_id, userId]
         );
       }
 
@@ -250,8 +268,8 @@ export class LancamentosService {
       let dataCompetenciaFatura = input.data_competencia_fatura || null;
       if (input.forma_pagamento === 'credito' && input.cartao_id && !dataCompetenciaFatura) {
         const { rows: cartaoRows } = await client.query(
-          'SELECT dia_fechamento, dia_vencimento FROM cartao_credito WHERE id = $1',
-          [input.cartao_id]
+          'SELECT dia_fechamento, dia_vencimento FROM cartao_credito WHERE id = $1 AND usuario_id = $2',
+          [input.cartao_id, userId]
         );
         if (cartaoRows.length > 0) {
           const c = cartaoRows[0];
@@ -266,7 +284,7 @@ export class LancamentosService {
           tipo = $1, valor = $2, data_compra = $3, data_competencia_fatura = $4,
           forma_pagamento = $5, conta_id = $6, cartao_id = $7, categoria_id = $8, subcategoria_id = $9,
           descricao = $10, anexo_url = $11, status = $12, atualizado_em = NOW()
-        WHERE id = $13
+        WHERE id = $13 AND usuario_id = $14
         RETURNING *`,
         [
           input.tipo,
@@ -282,6 +300,7 @@ export class LancamentosService {
           input.anexo_url || null,
           input.status || 'efetivado',
           id,
+          userId,
         ]
       );
 
@@ -291,8 +310,8 @@ export class LancamentosService {
       if (novo.status === 'efetivado' && novo.conta_id) {
         const novoDelta = novo.tipo === 'receita' ? parseFloat(novo.valor) : -parseFloat(novo.valor);
         await client.query(
-          'UPDATE conta SET saldo_atual = saldo_atual + $1 WHERE id = $2',
-          [novoDelta, novo.conta_id]
+          'UPDATE conta SET saldo_atual = saldo_atual + $1 WHERE id = $2 AND usuario_id = $3',
+          [novoDelta, novo.conta_id, userId]
         );
 
         const anoMesNovo = (dataCompetenciaFatura || input.data_compra).substring(0, 7);
@@ -300,14 +319,14 @@ export class LancamentosService {
         const novaReceita = novo.tipo === 'receita' ? parseFloat(novo.valor) : 0;
 
         await client.query(
-          `INSERT INTO resumo_mensal (ano_mes, categoria_id, conta_id, total_despesas, total_receitas)
-           VALUES ($1, $2, $3, $4, $5)
+          `INSERT INTO resumo_mensal (usuario_id, ano_mes, categoria_id, conta_id, total_despesas, total_receitas)
+           VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (ano_mes, categoria_id, conta_id)
            DO UPDATE SET 
              total_despesas = resumo_mensal.total_despesas + EXCLUDED.total_despesas,
              total_receitas = resumo_mensal.total_receitas + EXCLUDED.total_receitas,
              atualizado_em = NOW()`,
-          [anoMesNovo, novo.categoria_id, novo.conta_id, novaDespesa, novaReceita]
+          [userId, anoMesNovo, novo.categoria_id, novo.conta_id, novaDespesa, novaReceita]
         );
       }
 
@@ -315,9 +334,12 @@ export class LancamentosService {
     });
   }
 
-  async delete(id: string) {
+  async delete(id: string, userId: string) {
     return withTransaction(async (client) => {
-      const { rows } = await client.query('SELECT * FROM lancamento WHERE id = $1 FOR UPDATE', [id]);
+      const { rows } = await client.query(
+        'SELECT * FROM lancamento WHERE id = $1 AND usuario_id = $2 FOR UPDATE',
+        [id, userId]
+      );
       if (rows.length === 0) return false;
 
       const lancamento = rows[0];
@@ -325,8 +347,8 @@ export class LancamentosService {
       if (lancamento.status === 'efetivado' && lancamento.conta_id) {
         const revertDelta = lancamento.tipo === 'receita' ? -parseFloat(lancamento.valor) : parseFloat(lancamento.valor);
         await client.query(
-          'UPDATE conta SET saldo_atual = saldo_atual + $1 WHERE id = $2',
-          [revertDelta, lancamento.conta_id]
+          'UPDATE conta SET saldo_atual = saldo_atual + $1 WHERE id = $2 AND usuario_id = $3',
+          [revertDelta, lancamento.conta_id, userId]
         );
 
         const anoMes = (lancamento.data_competencia_fatura || lancamento.data_compra).toISOString ? (lancamento.data_competencia_fatura || lancamento.data_compra).toISOString().substring(0, 7) : String(lancamento.data_competencia_fatura || lancamento.data_compra).substring(0, 7);
@@ -338,12 +360,12 @@ export class LancamentosService {
            SET total_despesas = GREATEST(0, total_despesas - $1),
                total_receitas = GREATEST(0, total_receitas - $2),
                atualizado_em = NOW()
-           WHERE ano_mes = $3 AND categoria_id = $4 AND conta_id = $5`,
-          [revertDespesa, revertReceita, anoMes, lancamento.categoria_id, lancamento.conta_id]
+           WHERE ano_mes = $3 AND categoria_id = $4 AND conta_id = $5 AND usuario_id = $6`,
+          [revertDespesa, revertReceita, anoMes, lancamento.categoria_id, lancamento.conta_id, userId]
         );
       }
 
-      await client.query('DELETE FROM lancamento WHERE id = $1', [id]);
+      await client.query('DELETE FROM lancamento WHERE id = $1 AND usuario_id = $2', [id, userId]);
       return true;
     });
   }

@@ -1,6 +1,6 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { authService } from './auth.service.js';
-import { loginSchema, setupSchema } from './auth.schemas.js';
+import { loginSchema, registerSchema, setupSchema } from './auth.schemas.js';
 
 export class AuthController {
   async status(req: FastifyRequest, reply: FastifyReply) {
@@ -17,7 +17,14 @@ export class AuthController {
     return reply.send({
       ...status,
       authenticated,
-      user: user ? { id: user.id, login: user.login } : null,
+      user: user
+        ? {
+            id: user.id,
+            login: user.login,
+            nome: user.nome,
+            role: user.role,
+          }
+        : null,
     });
   }
 
@@ -30,11 +37,27 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      // Não define maxAge longo permanente para expirar com o navegador se não houver rolling
     });
 
     return reply.status(201).send({
       message: 'Setup concluído com sucesso!',
+      user: result.user,
+    });
+  }
+
+  async register(req: FastifyRequest, reply: FastifyReply) {
+    const body = registerSchema.parse(req.body);
+    const result = await authService.register(body);
+
+    reply.setCookie('sessionId', result.sessionToken, {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+
+    return reply.status(201).send({
+      message: 'Cadastro realizado com sucesso!',
       user: result.user,
     });
   }
@@ -67,7 +90,6 @@ export class AuthController {
   }
 
   async me(req: FastifyRequest, reply: FastifyReply) {
-    // req.user é preenchido pelo middleware de autenticação
     const user = (req as any).user;
     return reply.send({ user });
   }

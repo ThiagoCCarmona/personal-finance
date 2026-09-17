@@ -13,7 +13,7 @@ export interface Pessoa {
 }
 
 export class PessoasService {
-  async listar(): Promise<Pessoa[]> {
+  async listar(userId: string): Promise<Pessoa[]> {
     const res = await query<Pessoa>(`
       SELECT 
         p.*,
@@ -25,27 +25,27 @@ export class PessoasService {
           END
         ), 0) AS total_a_receber
       FROM pessoa p
-      LEFT JOIN divida d ON d.pessoa_id = p.id
-      WHERE p.ativo = TRUE
+      LEFT JOIN divida d ON d.pessoa_id = p.id AND d.usuario_id = $1
+      WHERE p.usuario_id = $1 AND p.ativo = TRUE
       GROUP BY p.id
       ORDER BY p.nome ASC
-    `);
+    `, [userId]);
     return res.rows.map(r => ({
       ...r,
       total_a_receber: parseFloat(r.total_a_receber as any || '0')
     }));
   }
 
-  async criar(dados: CriarPessoaInput): Promise<Pessoa> {
+  async criar(userId: string, dados: CriarPessoaInput): Promise<Pessoa> {
     const res = await query<Pessoa>(`
-      INSERT INTO pessoa (nome, apelido, telefone, email)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO pessoa (usuario_id, nome, apelido, telefone, email)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *, 0 AS total_a_receber
-    `, [dados.nome, dados.apelido || null, dados.telefone || null, dados.email || null]);
+    `, [userId, dados.nome, dados.apelido || null, dados.telefone || null, dados.email || null]);
     return res.rows[0];
   }
 
-  async atualizar(id: string, dados: import('./pessoas.schema.js').AtualizarPessoaInput): Promise<Pessoa | null> {
+  async atualizar(id: string, userId: string, dados: import('./pessoas.schema.js').AtualizarPessoaInput): Promise<Pessoa | null> {
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
@@ -68,21 +68,23 @@ export class PessoasService {
     }
 
     if (fields.length === 0) {
-      const p = await this.listar();
+      const p = await this.listar(userId);
       return p.find(item => item.id === id) || null;
     }
 
     fields.push(`atualizado_em = NOW()`);
     values.push(id);
+    const idIdx = idx++;
+    values.push(userId);
+    const userIdx = idx++;
 
-    await query(`UPDATE pessoa SET ${fields.join(', ')} WHERE id = $${idx}`, values);
-    const p = await this.listar();
+    await query(`UPDATE pessoa SET ${fields.join(', ')} WHERE id = $${idIdx} AND usuario_id = $${userIdx}`, values);
+    const p = await this.listar(userId);
     return p.find(item => item.id === id) || null;
   }
 
-  async excluir(id: string): Promise<void> {
-    // Soft delete para não violar integridade de dívidas
-    await query('UPDATE pessoa SET ativo = FALSE WHERE id = $1', [id]);
+  async excluir(id: string, userId: string): Promise<void> {
+    await query('UPDATE pessoa SET ativo = FALSE WHERE id = $1 AND usuario_id = $2', [id, userId]);
   }
 }
 

@@ -2,14 +2,14 @@ import { query } from '../../config/database.js';
 import { CategoriaInput } from './categorias.schemas.js';
 
 export class CategoriasService {
-  async listAll(tipo?: string) {
+  async listAll(userId: string, tipo?: string) {
     let sql = `
       SELECT c.*, p.nome as categoria_pai_nome
       FROM categoria c
       LEFT JOIN categoria p ON p.id = c.categoria_pai_id
-      WHERE 1=1
+      WHERE c.usuario_id = $1
     `;
-    const params: any[] = [];
+    const params: any[] = [userId];
 
     if (tipo) {
       params.push(tipo);
@@ -35,23 +35,24 @@ export class CategoriasService {
     };
   }
 
-  async getById(id: string) {
+  async getById(id: string, userId: string) {
     const { rows } = await query(
       `SELECT c.*, p.nome as categoria_pai_nome
        FROM categoria c
        LEFT JOIN categoria p ON p.id = c.categoria_pai_id
-       WHERE c.id = $1`,
-      [id]
+       WHERE c.id = $1 AND c.usuario_id = $2`,
+      [id, userId]
     );
     return rows[0] || null;
   }
 
-  async create(input: CategoriaInput) {
+  async create(userId: string, input: CategoriaInput) {
     const { rows } = await query(
-      `INSERT INTO categoria (nome, tipo, icone, cor, categoria_pai_id, ativo)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO categoria (usuario_id, nome, tipo, icone, cor, categoria_pai_id, ativo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
+        userId,
         input.nome.trim(),
         input.tipo,
         input.icone || 'Tag',
@@ -63,7 +64,7 @@ export class CategoriasService {
     return rows[0];
   }
 
-  async update(id: string, input: Partial<CategoriaInput>) {
+  async update(id: string, userId: string, input: Partial<CategoriaInput>) {
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
@@ -93,29 +94,31 @@ export class CategoriasService {
       values.push(input.ativo);
     }
 
-    if (fields.length === 0) return this.getById(id);
+    if (fields.length === 0) return this.getById(id, userId);
 
     fields.push(`atualizado_em = NOW()`);
     values.push(id);
+    const idIdx = idx++;
+    values.push(userId);
+    const userIdx = idx++;
 
     const { rows } = await query(
-      `UPDATE categoria SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+      `UPDATE categoria SET ${fields.join(', ')} WHERE id = $${idIdx} AND usuario_id = $${userIdx} RETURNING *`,
       values
     );
     return rows[0] || null;
   }
 
-  async delete(id: string) {
-    // Verifica se possui lançamentos vinculados
+  async delete(id: string, userId: string) {
     const { rows: lanc } = await query(
-      'SELECT COUNT(*) as count FROM lancamento WHERE categoria_id = $1 OR subcategoria_id = $1',
-      [id]
+      'SELECT COUNT(*) as count FROM lancamento WHERE (categoria_id = $1 OR subcategoria_id = $1) AND usuario_id = $2',
+      [id, userId]
     );
     if (parseInt(lanc[0].count, 10) > 0) {
       throw new Error('Esta categoria possui lançamentos associados. Desative-a em vez de excluí-la.');
     }
 
-    const { rowCount } = await query('DELETE FROM categoria WHERE id = $1', [id]);
+    const { rowCount } = await query('DELETE FROM categoria WHERE id = $1 AND usuario_id = $2', [id, userId]);
     return rowCount ? rowCount > 0 : false;
   }
 }

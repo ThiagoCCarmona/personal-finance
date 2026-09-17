@@ -5,6 +5,7 @@ import { authMiddleware } from '../../middlewares/auth.middleware.js';
 export async function authRoutes(app: FastifyInstance) {
   app.get('/status', authController.status);
   app.post('/setup', authController.setup);
+  app.post('/register', authController.register);
   app.post('/login', authController.login);
   app.post('/logout', authController.logout);
 

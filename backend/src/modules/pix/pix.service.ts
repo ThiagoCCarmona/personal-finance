@@ -35,33 +35,33 @@ export interface CobrancaPixItem {
 }
 
 export class PixService {
-  async listarChaves(): Promise<ChavePix[]> {
+  async listarChaves(userId: string): Promise<ChavePix[]> {
     const res = await query<ChavePix>(`
       SELECT 
         cp.*,
         c.apelido AS conta_nome
       FROM chave_pix cp
       LEFT JOIN conta c ON c.id = cp.conta_id
-      WHERE cp.ativo = TRUE 
+      WHERE cp.usuario_id = $1 AND cp.ativo = TRUE 
       ORDER BY cp.criado_em ASC
-    `);
+    `, [userId]);
     return res.rows;
   }
 
-  async criarChave(dados: CriarChavePixInput): Promise<ChavePix> {
+  async criarChave(userId: string, dados: CriarChavePixInput): Promise<ChavePix> {
     const res = await query<ChavePix>(`
-      INSERT INTO chave_pix (tipo, valor_chave, nome_recebedor, cidade_recebedor, apelido, conta_id)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO chave_pix (usuario_id, tipo, valor_chave, nome_recebedor, cidade_recebedor, apelido, conta_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [dados.tipo, dados.valor_chave.trim(), dados.nome_recebedor.trim(), dados.cidade_recebedor.trim(), dados.apelido || null, dados.conta_id || null]);
+    `, [userId, dados.tipo, dados.valor_chave.trim(), dados.nome_recebedor.trim(), dados.cidade_recebedor.trim(), dados.apelido || null, dados.conta_id || null]);
     return res.rows[0];
   }
 
-  async excluirChave(id: string): Promise<void> {
-    await query('UPDATE chave_pix SET ativo = FALSE WHERE id = $1', [id]);
+  async excluirChave(id: string, userId: string): Promise<void> {
+    await query('UPDATE chave_pix SET ativo = FALSE WHERE id = $1 AND usuario_id = $2', [id, userId]);
   }
 
-  async listarCobrancas(): Promise<CobrancaPixItem[]> {
+  async listarCobrancas(userId: string): Promise<CobrancaPixItem[]> {
     const res = await query<any>(`
       SELECT 
         c.*,
@@ -74,25 +74,27 @@ export class PixService {
       JOIN chave_pix cp ON cp.id = c.chave_pix_id
       LEFT JOIN divida d ON d.id = c.divida_id
       LEFT JOIN pessoa p ON p.id = d.pessoa_id
+      WHERE c.usuario_id = $1
       ORDER BY c.data_criacao DESC
-    `);
+    `, [userId]);
     return res.rows.map(r => ({
       ...r,
       valor: parseFloat(r.valor)
     }));
   }
 
-  async criarCobranca(dados: CriarCobrancaPixInput): Promise<CobrancaPixItem> {
-    const chRes = await query<ChavePix>('SELECT * FROM chave_pix WHERE id = $1 AND ativo = TRUE', [dados.chave_pix_id]);
+  async criarCobranca(userId: string, dados: CriarCobrancaPixInput): Promise<CobrancaPixItem> {
+    const chRes = await query<ChavePix>(
+      'SELECT * FROM chave_pix WHERE id = $1 AND usuario_id = $2 AND ativo = TRUE',
+      [dados.chave_pix_id, userId]
+    );
     if (chRes.rows.length === 0) {
-      throw new Error('Chave PIX não encontrada ou inativa');
+      throw new Error('Chave PIX não encontrada ou não autorizada');
     }
     const chave = chRes.rows[0];
 
-    // Gera TXID aleatório se não fornecido
     const txid = dados.txid || ('PIX' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase()).substring(0, 25);
 
-    // Gera payload oficial EMV Bacen
     const payloadEmv = gerarPayloadPix({
       chave: chave.valor_chave,
       nomeRecebedor: chave.nome_recebedor,
@@ -104,11 +106,12 @@ export class PixService {
 
     const res = await query<any>(`
       INSERT INTO cobranca_pix (
-        chave_pix_id, valor, mensagem, txid, payload_emv, status, divida_id, lancamento_id
+        usuario_id, chave_pix_id, valor, mensagem, txid, payload_emv, status, divida_id, lancamento_id
       )
-      VALUES ($1, $2, $3, $4, $5, 'aguardando_confirmacao', $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, 'aguardando_confirmacao', $7, $8)
       RETURNING *
     `, [
+      userId,
       dados.chave_pix_id,
       dados.valor,
       dados.mensagem || null,
@@ -128,29 +131,36 @@ export class PixService {
     };
   }
 
-  // Confirmação manual de cobrança PIX: Quita dívida se vinculada e credita na conta
-  async confirmarRecebimento(cobrancaId: string, dados: ConfirmarCobrancaPixInput): Promise<void> {
+  async confirmarRecebimento(cobrancaId: string, userId: string, dados: ConfirmarCobrancaPixInput): Promise<void> {
     const client = await getClient();
     try {
       await client.query('BEGIN');
 
-      const cobRes = await client.query('SELECT * FROM cobranca_pix WHERE id = $1 FOR UPDATE', [cobrancaId]);
+      const cobRes = await client.query(
+        'SELECT * FROM cobranca_pix WHERE id = $1 AND usuario_id = $2 FOR UPDATE',
+        [cobrancaId, userId]
+      );
       if (cobRes.rows.length === 0) {
-        throw new Error('Cobrança PIX não encontrada');
+        throw new Error('Cobrança PIX não encontrada ou não autorizada');
       }
       const cob = cobRes.rows[0];
       if (cob.status === 'recebida') {
         throw new Error('Esta cobrança já foi confirmada anteriormente');
       }
 
-      // Resolve conta de destino (da chave vinculada ou padrão)
       let contaDestinoId = dados.conta_destino_id;
       if (!contaDestinoId) {
-        const cpRes = await client.query('SELECT conta_id FROM chave_pix WHERE id = $1', [cob.chave_pix_id]);
+        const cpRes = await client.query(
+          'SELECT conta_id FROM chave_pix WHERE id = $1 AND usuario_id = $2',
+          [cob.chave_pix_id, userId]
+        );
         if (cpRes.rows.length > 0 && cpRes.rows[0].conta_id) {
           contaDestinoId = cpRes.rows[0].conta_id;
         } else {
-          const cFirst = await client.query('SELECT id FROM conta WHERE ativo = TRUE ORDER BY criado_em ASC LIMIT 1');
+          const cFirst = await client.query(
+            'SELECT id FROM conta WHERE usuario_id = $1 AND ativo = TRUE ORDER BY criado_em ASC LIMIT 1',
+            [userId]
+          );
           if (cFirst.rows.length > 0) contaDestinoId = cFirst.rows[0].id;
         }
       }
@@ -162,37 +172,47 @@ export class PixService {
       await client.query(`
         UPDATE cobranca_pix 
         SET status = 'recebida', data_confirmacao = NOW()
-        WHERE id = $1
-      `, [cobrancaId]);
+        WHERE id = $1 AND usuario_id = $2
+      `, [cobrancaId, userId]);
 
-      // 2. Se estiver vinculada a uma dívida, executa a baixa da dívida
+      // 2. Se estiver vinculada a uma dívida, executa a baixa da dívida com o userId correto
       if (cob.divida_id) {
-        await dividasService.darBaixa(cob.divida_id, {
+        await dividasService.darBaixa(cob.divida_id, userId, {
           valor: parseFloat(cob.valor),
           conta_destino_id: contaDestinoId,
           forma_pagamento: 'pix'
         });
       } else {
-        // Se cobrança avulsa, gera receita na conta destino
-        const contaRes = await client.query('SELECT moeda_id FROM conta WHERE id = $1', [contaDestinoId]);
+        const contaRes = await client.query(
+          'SELECT moeda_id FROM conta WHERE id = $1 AND usuario_id = $2',
+          [contaDestinoId, userId]
+        );
         if (contaRes.rows.length > 0) {
           const moedaId = contaRes.rows[0].moeda_id;
-          let catRes = await client.query("SELECT id FROM categoria WHERE nome = 'Outras Receitas' LIMIT 1");
+          let catRes = await client.query(
+            "SELECT id FROM categoria WHERE nome = 'Outras Receitas' AND usuario_id = $1 LIMIT 1",
+            [userId]
+          );
           let categoriaId: string;
           if (catRes.rows.length > 0) {
             categoriaId = catRes.rows[0].id;
           } else {
-            const cNova = await client.query("INSERT INTO categoria (nome, tipo, icone, cor) VALUES ('Outras Receitas', 'receita', 'ArrowDownLeft', '#10B981') RETURNING id");
+            const cNova = await client.query(`
+              INSERT INTO categoria (usuario_id, nome, tipo, icone, cor) 
+              VALUES ($1, 'Outras Receitas', 'receita', 'ArrowDownLeft', '#10B981') 
+              RETURNING id
+            `, [userId]);
             categoriaId = cNova.rows[0].id;
           }
 
           await client.query(`
             INSERT INTO lancamento (
-              tipo, valor, moeda_id, data_compra, forma_pagamento, 
+              usuario_id, tipo, valor, moeda_id, data_compra, forma_pagamento, 
               conta_id, categoria_id, descricao, status
             )
-            VALUES ('receita', $1, $2, CURRENT_DATE, 'pix_debito', $3, $4, $5, 'efetivado')
+            VALUES ($1, 'receita', $2, $3, CURRENT_DATE, 'pix_debito', $4, $5, $6, 'efetivado')
           `, [
+            userId,
             cob.valor,
             moedaId,
             contaDestinoId,
@@ -201,8 +221,10 @@ export class PixService {
           ]);
 
           await client.query(`
-            UPDATE conta SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() WHERE id = $2
-          `, [cob.valor, contaDestinoId]);
+            UPDATE conta 
+            SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() 
+            WHERE id = $2 AND usuario_id = $3
+          `, [cob.valor, contaDestinoId, userId]);
         }
       }
 
@@ -215,8 +237,8 @@ export class PixService {
     }
   }
 
-  async excluirCobranca(id: string): Promise<boolean> {
-    const { rowCount } = await query('DELETE FROM cobranca_pix WHERE id = $1', [id]);
+  async excluirCobranca(id: string, userId: string): Promise<boolean> {
+    const { rowCount } = await query('DELETE FROM cobranca_pix WHERE id = $1 AND usuario_id = $2', [id, userId]);
     return (rowCount ?? 0) > 0;
   }
 }

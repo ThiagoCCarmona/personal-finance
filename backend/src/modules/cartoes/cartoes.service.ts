@@ -2,21 +2,22 @@ import { query } from '../../config/database.js';
 import { CartaoInput } from './cartoes.schemas.js';
 
 export class CartoesService {
-  async listAll() {
+  async listAll(userId: string) {
     const hoje = new Date();
     const anoMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
-    // Busca os cartões com dados da instituição
+    // Busca os cartões do usuário com dados da instituição
     const { rows: cartoes } = await query(
       `SELECT c.*,
         i.nome as instituicao_nome, i.icone as instituicao_icone, i.cor as instituicao_cor
        FROM cartao_credito c
        JOIN instituicao i ON i.id = c.instituicao_id
-       ORDER BY c.ativo DESC, c.apelido ASC`
+       WHERE c.usuario_id = $1
+       ORDER BY c.ativo DESC, c.apelido ASC`,
+      [userId]
     );
 
-    // Para cada cartão, calcula o limite utilizado total (faturas atuais e futuras pendentes)
-    // e o valor da fatura do mês atual
+    // Para cada cartão, calcula o limite utilizado total e o valor da fatura do mês atual
     const result = await Promise.all(
       cartoes.map(async (cartao) => {
         // Soma das faturas abertas / futuras a partir do mês atual
@@ -24,9 +25,10 @@ export class CartoesService {
           `SELECT COALESCE(SUM(valor), 0) as total_utilizado
            FROM lancamento
            WHERE cartao_id = $1 
+             AND usuario_id = $2
              AND tipo = 'despesa'
-             AND (data_competencia_fatura >= $2 OR data_competencia_fatura IS NULL)`,
-          [cartao.id, `${anoMesAtual}-01`]
+             AND (data_competencia_fatura >= $3 OR data_competencia_fatura IS NULL)`,
+          [cartao.id, userId, `${anoMesAtual}-01`]
         );
 
         // Soma dos gastos específicos da fatura do mês atual
@@ -34,9 +36,10 @@ export class CartoesService {
           `SELECT COALESCE(SUM(valor), 0) as total_fatura
            FROM lancamento
            WHERE cartao_id = $1 
+             AND usuario_id = $2
              AND tipo = 'despesa'
-             AND TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $2`,
-          [cartao.id, anoMesAtual]
+             AND TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $3`,
+          [cartao.id, userId, anoMesAtual]
         );
 
         const limite = parseFloat(cartao.limite);
@@ -58,24 +61,25 @@ export class CartoesService {
     return result;
   }
 
-  async getById(id: string) {
+  async getById(id: string, userId: string) {
     const { rows } = await query(
       `SELECT c.*,
         i.nome as instituicao_nome, i.icone as instituicao_icone, i.cor as instituicao_cor
        FROM cartao_credito c
        JOIN instituicao i ON i.id = c.instituicao_id
-       WHERE c.id = $1`,
-      [id]
+       WHERE c.id = $1 AND c.usuario_id = $2`,
+      [id, userId]
     );
     return rows[0] || null;
   }
 
-  async create(input: CartaoInput) {
+  async create(userId: string, input: CartaoInput) {
     const { rows } = await query(
-      `INSERT INTO cartao_credito (instituicao_id, apelido, limite, dia_fechamento, dia_vencimento, ativo)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO cartao_credito (usuario_id, instituicao_id, apelido, limite, dia_fechamento, dia_vencimento, ativo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
+        userId,
         input.instituicao_id,
         input.apelido.trim(),
         input.limite,
@@ -87,7 +91,7 @@ export class CartoesService {
     return rows[0];
   }
 
-  async update(id: string, input: Partial<CartaoInput>) {
+  async update(id: string, userId: string, input: Partial<CartaoInput>) {
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
@@ -117,36 +121,42 @@ export class CartoesService {
       values.push(input.ativo);
     }
 
-    if (fields.length === 0) return this.getById(id);
+    if (fields.length === 0) return this.getById(id, userId);
 
     fields.push(`atualizado_em = NOW()`);
     values.push(id);
+    const idIdx = idx++;
+    values.push(userId);
+    const userIdx = idx++;
 
     const { rows } = await query(
-      `UPDATE cartao_credito SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+      `UPDATE cartao_credito SET ${fields.join(', ')} WHERE id = $${idIdx} AND usuario_id = $${userIdx} RETURNING *`,
       values
     );
     return rows[0] || null;
   }
 
-  async delete(id: string) {
-    const { rows } = await query('SELECT COUNT(*) as count FROM lancamento WHERE cartao_id = $1', [id]);
+  async delete(id: string, userId: string) {
+    const { rows } = await query(
+      'SELECT COUNT(*) as count FROM lancamento WHERE cartao_id = $1 AND usuario_id = $2',
+      [id, userId]
+    );
     if (parseInt(rows[0].count, 10) > 0) {
       throw new Error('Este cartão possui lançamentos vinculados. Desative-o em vez de excluí-lo.');
     }
 
-    const { rowCount } = await query('DELETE FROM cartao_credito WHERE id = $1', [id]);
+    const { rowCount } = await query('DELETE FROM cartao_credito WHERE id = $1 AND usuario_id = $2', [id, userId]);
     return rowCount ? rowCount > 0 : false;
   }
 
-  async getFatura(cartaoId: string, anoMesParam?: string) {
+  async getFatura(cartaoId: string, userId: string, anoMesParam?: string) {
     const hoje = new Date();
     const anoMes = anoMesParam || `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
-    const cartao = await this.getById(cartaoId);
+    const cartao = await this.getById(cartaoId, userId);
     if (!cartao) throw new Error('Cartão não encontrado.');
 
-    // Busca todos os lançamentos pertencentes a este ciclo de fatura
+    // Busca todos os lançamentos pertencentes a este ciclo de fatura deste usuário
     const { rows: itens } = await query(
       `SELECT l.*,
         cat.nome as categoria_nome, cat.icone as categoria_icone, cat.cor as categoria_cor,
@@ -157,9 +167,10 @@ export class CartoesService {
        LEFT JOIN categoria subcat ON subcat.id = l.subcategoria_id
        LEFT JOIN compra_parcelada cp ON cp.id = l.compra_parcelada_id
        WHERE l.cartao_id = $1 
-         AND TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $2
+         AND l.usuario_id = $2
+         AND TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $3
        ORDER BY l.data_compra ASC`,
-      [cartaoId, anoMes]
+      [cartaoId, userId, anoMes]
     );
 
     const totalFatura = itens.reduce((acc, item) => acc + parseFloat(item.valor), 0);

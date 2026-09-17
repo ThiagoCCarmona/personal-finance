@@ -35,6 +35,8 @@ logs/
 *.tar.gz
 *.zip
 *.tgz
+*.patch
+*.bundle
 deploy_*.sh
 check_path.sh
 projeto_financeiro_fix.tar.gz

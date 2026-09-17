@@ -52,7 +52,8 @@ export const api = {
 
   // Auth
   getStatus: () => request<import('../types/index.js').AuthStatus>('/auth/status'),
-  setup: (body: { login: string; senha: string }) => request<any>('/auth/setup', { method: 'POST', body: JSON.stringify(body) }),
+  setup: (body: { login: string; senha: string; nome?: string }) => request<any>('/auth/setup', { method: 'POST', body: JSON.stringify(body) }),
+  register: (body: { login: string; senha: string; nome?: string }) => request<any>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body: { login: string; senha: string }) => request<any>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   logout: () => request<any>('/auth/logout', { method: 'POST' }),
 

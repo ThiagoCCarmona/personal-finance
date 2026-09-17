@@ -3,7 +3,7 @@ import { ParcelamentoInput } from './parcelamentos.schemas.js';
 import { calcularCompetenciaFatura, adicionarMesesCompetencia } from '../../utils/fatura.utils.js';
 
 export class ParcelamentosService {
-  async listAll() {
+  async listAll(userId: string) {
     const hoje = new Date();
     const anoMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
@@ -12,16 +12,17 @@ export class ParcelamentosService {
         c.apelido as cartao_apelido,
         cat.nome as categoria_nome, cat.cor as categoria_cor,
         COUNT(l.id) as total_parcelas_geradas,
-        COUNT(CASE WHEN l.data_competencia_fatura < $1 THEN 1 END) as parcelas_pagas,
-        COUNT(CASE WHEN l.data_competencia_fatura >= $1 THEN 1 END) as parcelas_restantes,
-        COALESCE(SUM(CASE WHEN l.data_competencia_fatura >= $1 THEN l.valor ELSE 0 END), 0) as saldo_devedor_remanescente
+        COUNT(CASE WHEN l.data_competencia_fatura < $2 THEN 1 END) as parcelas_pagas,
+        COUNT(CASE WHEN l.data_competencia_fatura >= $2 THEN 1 END) as parcelas_restantes,
+        COALESCE(SUM(CASE WHEN l.data_competencia_fatura >= $2 THEN l.valor ELSE 0 END), 0) as saldo_devedor_remanescente
        FROM compra_parcelada cp
        JOIN cartao_credito c ON c.id = cp.cartao_id
        JOIN categoria cat ON cat.id = cp.categoria_id
-       LEFT JOIN lancamento l ON l.compra_parcelada_id = cp.id
+       LEFT JOIN lancamento l ON l.compra_parcelada_id = cp.id AND l.usuario_id = $1
+       WHERE cp.usuario_id = $1
        GROUP BY cp.id, c.apelido, cat.nome, cat.cor
        ORDER BY cp.data_compra DESC`,
-      [`${anoMesAtual}-01`]
+      [userId, `${anoMesAtual}-01`]
     );
 
     return rows.map(r => ({
@@ -33,7 +34,7 @@ export class ParcelamentosService {
     }));
   }
 
-  async getById(id: string) {
+  async getById(id: string, userId: string) {
     const { rows } = await query(
       `SELECT cp.*,
         c.apelido as cartao_apelido,
@@ -41,8 +42,8 @@ export class ParcelamentosService {
        FROM compra_parcelada cp
        JOIN cartao_credito c ON c.id = cp.cartao_id
        JOIN categoria cat ON cat.id = cp.categoria_id
-       WHERE cp.id = $1`,
-      [id]
+       WHERE cp.id = $1 AND cp.usuario_id = $2`,
+      [id, userId]
     );
 
     if (rows.length === 0) return null;
@@ -51,9 +52,9 @@ export class ParcelamentosService {
     const { rows: parcelas } = await query(
       `SELECT l.*, TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') as mes_fatura
        FROM lancamento l
-       WHERE l.compra_parcelada_id = $1
+       WHERE l.compra_parcelada_id = $1 AND l.usuario_id = $2
        ORDER BY l.numero_parcela ASC`,
-      [id]
+      [id, userId]
     );
 
     return {
@@ -63,19 +64,19 @@ export class ParcelamentosService {
     };
   }
 
-  async create(input: ParcelamentoInput) {
+  async create(userId: string, input: ParcelamentoInput) {
     return withTransaction(async (client) => {
-      // 1. Obter dados do cartão (dia_fechamento, dia_vencimento e moeda)
+      // 1. Obter dados do cartão garantindo posse do usuário
       const { rows: cartaoRows } = await client.query(
         `SELECT c.*, inst.id as instituicao_id
          FROM cartao_credito c
          JOIN instituicao inst ON inst.id = c.instituicao_id
-         WHERE c.id = $1`,
-        [input.cartao_id]
+         WHERE c.id = $1 AND c.usuario_id = $2`,
+        [input.cartao_id, userId]
       );
 
       if (cartaoRows.length === 0) {
-        throw new Error('Cartão de crédito não encontrado.');
+        throw new Error('Cartão de crédito não encontrado ou não autorizado.');
       }
       const cartao = cartaoRows[0];
 
@@ -86,11 +87,12 @@ export class ParcelamentosService {
       // 2. Criar registro mestre de compra parcelada
       const { rows: compraRows } = await client.query(
         `INSERT INTO compra_parcelada (
-          descricao, valor_total, num_parcelas, cartao_id, categoria_id, subcategoria_id, data_compra
+          usuario_id, descricao, valor_total, num_parcelas, cartao_id, categoria_id, subcategoria_id, data_compra
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *`,
         [
+          userId,
           input.descricao.trim(),
           input.valor_total,
           input.num_parcelas,
@@ -118,19 +120,19 @@ export class ParcelamentosService {
 
       // 5. Gerar as N parcelas na tabela lancamento
       for (let i = 1; i <= n; i++) {
-        // A primeira parcela absorve a diferença de centavos se houver
         const valorParcela = i === 1 ? valorBaseParcela + diferencaCentavos : valorBaseParcela;
         const competenciaParcela = adicionarMesesCompetencia(cicloInicial.dataCompetenciaFatura, i - 1);
         const descricaoParcela = `${input.descricao.trim()} (${i}/${n})`;
 
         await client.query(
           `INSERT INTO lancamento (
-            tipo, valor, moeda_id, data_compra, data_competencia_fatura,
+            usuario_id, tipo, valor, moeda_id, data_compra, data_competencia_fatura,
             forma_pagamento, cartao_id, categoria_id, subcategoria_id,
             descricao, compra_parcelada_id, numero_parcela, total_parcelas, status
           )
-          VALUES ('despesa', $1, $2, $3, $4, 'credito', $5, $6, $7, $8, $9, $10, $11, 'efetivado')`,
+          VALUES ($1, 'despesa', $2, $3, $4, $5, 'credito', $6, $7, $8, $9, $10, $11, $12, 'efetivado')`,
           [
+            userId,
             valorParcela,
             moedaId,
             input.data_compra,
@@ -150,10 +152,11 @@ export class ParcelamentosService {
     });
   }
 
-  async delete(id: string) {
+  async delete(id: string, userId: string) {
     return withTransaction(async (client) => {
-      // Como a constraint possui ON DELETE CASCADE para lancamento, deletar a compra_parcelada remove as parcelas
-      const { rowCount } = await client.query('DELETE FROM compra_parcelada WHERE id = $1', [id]);
+      // Deletar também os lançamentos correspondentes
+      await client.query('DELETE FROM lancamento WHERE compra_parcelada_id = $1 AND usuario_id = $2', [id, userId]);
+      const { rowCount } = await client.query('DELETE FROM compra_parcelada WHERE id = $1 AND usuario_id = $2', [id, userId]);
       return rowCount ? rowCount > 0 : false;
     });
   }

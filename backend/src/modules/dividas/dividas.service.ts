@@ -20,7 +20,7 @@ export interface DividaItem {
 }
 
 export class DividasService {
-  async listar(filtroStatus?: string, pessoaId?: string): Promise<DividaItem[]> {
+  async listar(userId: string, filtroStatus?: string, pessoaId?: string): Promise<DividaItem[]> {
     let sql = `
       SELECT 
         d.id,
@@ -41,9 +41,9 @@ export class DividasService {
       FROM divida d
       JOIN pessoa p ON p.id = d.pessoa_id
       LEFT JOIN conta c ON c.id = d.conta_origem_id
-      WHERE 1=1
+      WHERE d.usuario_id = $1
     `;
-    const params: any[] = [];
+    const params: any[] = [userId];
 
     if (filtroStatus && filtroStatus !== 'todos') {
       params.push(filtroStatus);
@@ -66,7 +66,7 @@ export class DividasService {
     }));
   }
 
-  async obterResumo(): Promise<{ totalReceber: number; totalRecebido: number; totalPerdoado: number; qtdPendentes: number }> {
+  async obterResumo(userId: string): Promise<{ totalReceber: number; totalRecebido: number; totalPerdoado: number; qtdPendentes: number }> {
     const res = await query<any>(`
       SELECT 
         COALESCE(SUM(CASE WHEN status IN ('pendente', 'parcial') THEN (valor_total - valor_pago - valor_perdoado) ELSE 0 END), 0) AS total_receber,
@@ -74,7 +74,8 @@ export class DividasService {
         COALESCE(SUM(valor_perdoado), 0) AS total_perdoado,
         COUNT(CASE WHEN status IN ('pendente', 'parcial') THEN 1 END) AS qtd_pendentes
       FROM divida
-    `);
+      WHERE usuario_id = $1
+    `, [userId]);
     const row = res.rows[0];
     return {
       totalReceber: parseFloat(row.total_receber),
@@ -84,42 +85,48 @@ export class DividasService {
     };
   }
 
-  // Regra 1: Criar empréstimo debita da conta bancária de origem e cria dívida a receber
-  async criarEmprestimo(dados: CriarEmprestimoInput): Promise<DividaItem> {
+  async criarEmprestimo(userId: string, dados: CriarEmprestimoInput): Promise<DividaItem> {
     const client = await getClient();
     try {
       await client.query('BEGIN');
 
-      // 1. Verifica saldo da conta de origem
-      const contaRes = await client.query('SELECT saldo_atual, moeda_id FROM conta WHERE id = $1', [dados.conta_origem_id]);
+      // 1. Verifica saldo da conta de origem garantindo posse do usuário
+      const contaRes = await client.query(
+        'SELECT saldo_atual, moeda_id FROM conta WHERE id = $1 AND usuario_id = $2',
+        [dados.conta_origem_id, userId]
+      );
       if (contaRes.rows.length === 0) {
-        throw new Error('Conta bancária de origem não encontrada');
+        throw new Error('Conta bancária de origem não encontrada ou não autorizada');
       }
       const moedaId = contaRes.rows[0].moeda_id;
 
-      // 2. Busca ou cria categoria padrão 'Empréstimos Concedidos'
-      let catRes = await client.query("SELECT id FROM categoria WHERE nome = 'Empréstimos Concedidos' LIMIT 1");
+      // 2. Busca ou cria categoria do usuário 'Empréstimos Concedidos'
+      let catRes = await client.query(
+        "SELECT id FROM categoria WHERE nome = 'Empréstimos Concedidos' AND usuario_id = $1 LIMIT 1",
+        [userId]
+      );
       let categoriaId: string;
       if (catRes.rows.length > 0) {
         categoriaId = catRes.rows[0].id;
       } else {
         const novaCat = await client.query(`
-          INSERT INTO categoria (nome, tipo, icone, cor)
-          VALUES ('Empréstimos Concedidos', 'despesa', 'HandCoins', '#F59E0B')
+          INSERT INTO categoria (usuario_id, nome, tipo, icone, cor)
+          VALUES ($1, 'Empréstimos Concedidos', 'despesa', 'HandCoins', '#F59E0B')
           RETURNING id
-        `);
+        `, [userId]);
         categoriaId = novaCat.rows[0].id;
       }
 
-      // 3. Insere a dívida
+      // 3. Insere a dívida com usuario_id
       const dividaRes = await client.query<any>(`
         INSERT INTO divida (
-          pessoa_id, valor_total, valor_pago, valor_perdoado, motivo, 
+          usuario_id, pessoa_id, valor_total, valor_pago, valor_perdoado, motivo, 
           conta_origem_id, status, data, vencimento
         )
-        VALUES ($1, $2, 0.00, 0.00, $3, $4, 'pendente', COALESCE($5, CURRENT_DATE), $6)
+        VALUES ($1, $2, $3, 0.00, 0.00, $4, $5, 'pendente', COALESCE($6, CURRENT_DATE), $7)
         RETURNING *
       `, [
+        userId,
         dados.pessoa_id, 
         dados.valor_total, 
         dados.motivo, 
@@ -129,14 +136,15 @@ export class DividasService {
       ]);
       const novaDivida = dividaRes.rows[0];
 
-      // 4. Cria lançamento financeiro de débito (despesa de empréstimo)
+      // 4. Cria lançamento financeiro de débito
       await client.query(`
         INSERT INTO lancamento (
-          tipo, valor, moeda_id, data_compra, forma_pagamento, 
+          usuario_id, tipo, valor, moeda_id, data_compra, forma_pagamento, 
           conta_id, categoria_id, descricao, status
         )
-        VALUES ('despesa', $1, $2, COALESCE($3, CURRENT_DATE), 'transferencia', $4, $5, $6, 'efetivado')
+        VALUES ($1, 'despesa', $2, $3, COALESCE($4, CURRENT_DATE), 'transferencia', $5, $6, $7, 'efetivado')
       `, [
+        userId,
         dados.valor_total,
         moedaId,
         dados.data || null,
@@ -149,12 +157,12 @@ export class DividasService {
       await client.query(`
         UPDATE conta 
         SET saldo_atual = saldo_atual - $1, atualizado_em = NOW() 
-        WHERE id = $2
-      `, [dados.valor_total, dados.conta_origem_id]);
+        WHERE id = $2 AND usuario_id = $3
+      `, [dados.valor_total, dados.conta_origem_id, userId]);
 
       await client.query('COMMIT');
 
-      const fullItem = await this.listar(undefined, undefined);
+      const fullItem = await this.listar(userId, undefined, undefined);
       return fullItem.find(d => d.id === novaDivida.id)!;
     } catch (err) {
       await client.query('ROLLBACK');
@@ -164,15 +172,17 @@ export class DividasService {
     }
   }
 
-  // Regra 2: Baixa manual ou via PIX (parcial ou total) -> gera lançamento de receita
-  async darBaixa(dividaId: string, dados: BaixaDividaInput): Promise<DividaItem> {
+  async darBaixa(dividaId: string, userId: string, dados: BaixaDividaInput): Promise<DividaItem> {
     const client = await getClient();
     try {
       await client.query('BEGIN');
 
-      const dRes = await client.query('SELECT * FROM divida WHERE id = $1 FOR UPDATE', [dividaId]);
+      const dRes = await client.query(
+        'SELECT * FROM divida WHERE id = $1 AND usuario_id = $2 FOR UPDATE',
+        [dividaId, userId]
+      );
       if (dRes.rows.length === 0) {
-        throw new Error('Dívida não encontrada');
+        throw new Error('Dívida não encontrada ou não autorizada');
       }
       const divida = dRes.rows[0];
       const saldoDevedor = parseFloat(divida.valor_total) - parseFloat(divida.valor_pago) - parseFloat(divida.valor_perdoado);
@@ -185,43 +195,46 @@ export class DividasService {
       const quitou = (novoValorPago + parseFloat(divida.valor_perdoado)) >= (parseFloat(divida.valor_total) - 0.009);
       const novoStatus = quitou ? 'quitada' : 'parcial';
 
-      // Atualiza dívida
       await client.query(`
         UPDATE divida 
         SET valor_pago = $1, status = $2, atualizado_em = NOW()
-        WHERE id = $3
-      `, [novoValorPago, novoStatus, dividaId]);
+        WHERE id = $3 AND usuario_id = $4
+      `, [novoValorPago, novoStatus, dividaId, userId]);
 
-      // Se informou conta de destino, debita na conta e gera receita
       if (dados.conta_destino_id) {
-        const cRes = await client.query('SELECT moeda_id FROM conta WHERE id = $1', [dados.conta_destino_id]);
+        const cRes = await client.query(
+          'SELECT moeda_id FROM conta WHERE id = $1 AND usuario_id = $2',
+          [dados.conta_destino_id, userId]
+        );
         if (cRes.rows.length > 0) {
           const moedaId = cRes.rows[0].moeda_id;
 
-          // Categoria 'Recebimento de Empréstimo'
-          let catRes = await client.query("SELECT id FROM categoria WHERE nome = 'Recebimento de Empréstimo' LIMIT 1");
+          let catRes = await client.query(
+            "SELECT id FROM categoria WHERE nome = 'Recebimento de Empréstimo' AND usuario_id = $1 LIMIT 1",
+            [userId]
+          );
           let categoriaId: string;
           if (catRes.rows.length > 0) {
             categoriaId = catRes.rows[0].id;
           } else {
             const novaCat = await client.query(`
-              INSERT INTO categoria (nome, tipo, icone, cor)
-              VALUES ('Recebimento de Empréstimo', 'receita', 'Handshake', '#10B981')
+              INSERT INTO categoria (usuario_id, nome, tipo, icone, cor)
+              VALUES ($1, 'Recebimento de Empréstimo', 'receita', 'Handshake', '#10B981')
               RETURNING id
-            `);
+            `, [userId]);
             categoriaId = novaCat.rows[0].id;
           }
 
           const formaPgto = dados.forma_pagamento === 'pix' ? 'pix_debito' : (dados.forma_pagamento || 'transferencia');
 
-          // Insere receita
           await client.query(`
             INSERT INTO lancamento (
-              tipo, valor, moeda_id, data_compra, forma_pagamento, 
+              usuario_id, tipo, valor, moeda_id, data_compra, forma_pagamento, 
               conta_id, categoria_id, descricao, status
             )
-            VALUES ('receita', $1, $2, COALESCE($3, CURRENT_DATE), $4, $5, $6, $7, 'efetivado')
+            VALUES ($1, 'receita', $2, $3, COALESCE($4, CURRENT_DATE), $5, $6, $7, $8, 'efetivado')
           `, [
+            userId,
             dados.valor,
             moedaId,
             dados.data || null,
@@ -231,17 +244,16 @@ export class DividasService {
             `Recebimento de dívida: ${divida.motivo}`
           ]);
 
-          // Atualiza saldo da conta destino
           await client.query(`
             UPDATE conta 
             SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() 
-            WHERE id = $2
-          `, [dados.valor, dados.conta_destino_id]);
+            WHERE id = $2 AND usuario_id = $3
+          `, [dados.valor, dados.conta_destino_id, userId]);
         }
       }
 
       await client.query('COMMIT');
-      const items = await this.listar(undefined, undefined);
+      const items = await this.listar(userId, undefined, undefined);
       return items.find(d => d.id === dividaId)!;
     } catch (err) {
       await client.query('ROLLBACK');
@@ -251,14 +263,16 @@ export class DividasService {
     }
   }
 
-  // Regra 3: Perdão de dívida -> status 'perdoada', SEM lançamento financeiro
-  async perdoar(dividaId: string): Promise<DividaItem> {
+  async perdoar(dividaId: string, userId: string): Promise<DividaItem> {
     const client = await getClient();
     try {
       await client.query('BEGIN');
-      const dRes = await client.query('SELECT * FROM divida WHERE id = $1 FOR UPDATE', [dividaId]);
+      const dRes = await client.query(
+        'SELECT * FROM divida WHERE id = $1 AND usuario_id = $2 FOR UPDATE',
+        [dividaId, userId]
+      );
       if (dRes.rows.length === 0) {
-        throw new Error('Dívida não encontrada');
+        throw new Error('Dívida não encontrada ou não autorizada');
       }
       const divida = dRes.rows[0];
       const valorRestante = parseFloat(divida.valor_total) - parseFloat(divida.valor_pago);
@@ -266,11 +280,11 @@ export class DividasService {
       await client.query(`
         UPDATE divida
         SET valor_perdoado = $1, status = 'perdoada', atualizado_em = NOW()
-        WHERE id = $2
-      `, [valorRestante, dividaId]);
+        WHERE id = $2 AND usuario_id = $3
+      `, [valorRestante, dividaId, userId]);
 
       await client.query('COMMIT');
-      const items = await this.listar(undefined, undefined);
+      const items = await this.listar(userId, undefined, undefined);
       return items.find(d => d.id === dividaId)!;
     } catch (err) {
       await client.query('ROLLBACK');
@@ -280,8 +294,7 @@ export class DividasService {
     }
   }
 
-  // Atualizar dados cadastrais da dívida
-  async atualizar(dividaId: string, dados: import('./dividas.schema.js').AtualizarDividaInput): Promise<DividaItem | null> {
+  async atualizar(dividaId: string, userId: string, dados: import('./dividas.schema.js').AtualizarDividaInput): Promise<DividaItem | null> {
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
@@ -304,50 +317,49 @@ export class DividasService {
     }
 
     if (fields.length === 0) {
-      const items = await this.listar();
+      const items = await this.listar(userId);
       return items.find(d => d.id === dividaId) || null;
     }
 
     fields.push(`atualizado_em = NOW()`);
     values.push(dividaId);
+    const idIdx = idx++;
+    values.push(userId);
+    const userIdx = idx++;
 
-    await query(`UPDATE divida SET ${fields.join(', ')} WHERE id = $${idx}`, values);
-    const items = await this.listar();
+    await query(`UPDATE divida SET ${fields.join(', ')} WHERE id = $${idIdx} AND usuario_id = $${userIdx}`, values);
+    const items = await this.listar(userId);
     return items.find(d => d.id === dividaId) || null;
   }
 
-  // Excluir dívida: Desfaz débito caso tenha sido empréstimo que debitou conta e não foi pago
-  async excluir(dividaId: string): Promise<boolean> {
+  async excluir(dividaId: string, userId: string): Promise<boolean> {
     const client = await getClient();
     try {
       await client.query('BEGIN');
 
-      const dRes = await client.query('SELECT * FROM divida WHERE id = $1 FOR UPDATE', [dividaId]);
+      const dRes = await client.query(
+        'SELECT * FROM divida WHERE id = $1 AND usuario_id = $2 FOR UPDATE',
+        [dividaId, userId]
+      );
       if (dRes.rows.length === 0) {
         await client.query('ROLLBACK');
         return false;
       }
       const divida = dRes.rows[0];
 
-      // Se for empréstimo que debitou conta e não teve baixa
       if (divida.conta_origem_id && parseFloat(divida.valor_pago) === 0 && !divida.despesa_compartilhada_id) {
-        // Estorna o saldo da conta que foi debitado
-        await client.query('UPDATE conta SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() WHERE id = $2', [
-          divida.valor_total,
-          divida.conta_origem_id
-        ]);
-        // Remove o lançamento financeiro gerado
-        await client.query(`DELETE FROM lancamento WHERE conta_id = $1 AND descricao LIKE $2 AND tipo = 'despesa'`, [
-          divida.conta_origem_id,
-          `%${divida.motivo}%`
-        ]);
+        await client.query(
+          'UPDATE conta SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() WHERE id = $2 AND usuario_id = $3',
+          [divida.valor_total, divida.conta_origem_id, userId]
+        );
+        await client.query(
+          `DELETE FROM lancamento WHERE conta_id = $1 AND descricao LIKE $2 AND tipo = 'despesa' AND usuario_id = $3`,
+          [divida.conta_origem_id, `%${divida.motivo}%`, userId]
+        );
       }
 
-      // Remove referências em cobrança PIX
-      await client.query('DELETE FROM cobranca_pix WHERE divida_id = $1', [dividaId]);
-
-      // Remove a dívida
-      await client.query('DELETE FROM divida WHERE id = $1', [dividaId]);
+      await client.query('DELETE FROM cobranca_pix WHERE divida_id = $1 AND usuario_id = $2', [dividaId, userId]);
+      await client.query('DELETE FROM divida WHERE id = $1 AND usuario_id = $2', [dividaId, userId]);
 
       await client.query('COMMIT');
       return true;

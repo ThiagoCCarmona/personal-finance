@@ -2,38 +2,40 @@ import { query, getClient } from '../../config/database.js';
 import { CriarDespesaCompartilhadaInput } from './despesas_compartilhadas.schema.js';
 
 export class DespesasCompartilhadasService {
-  async listar() {
+  async listar(userId: string) {
     const res = await query(`
       SELECT 
         dc.*,
         c.apelido AS conta_nome,
         cc.apelido AS cartao_nome,
         cat.nome AS categoria_nome,
-        (SELECT COUNT(*) FROM divida d WHERE d.despesa_compartilhada_id = dc.id) AS total_participantes,
-        (SELECT COALESCE(SUM(d.valor_total), 0) FROM divida d WHERE d.despesa_compartilhada_id = dc.id) AS valor_a_receber_total,
-        (SELECT COALESCE(SUM(d.valor_pago), 0) FROM divida d WHERE d.despesa_compartilhada_id = dc.id) AS valor_recebido_total
+        (SELECT COUNT(*) FROM divida d WHERE d.despesa_compartilhada_id = dc.id AND d.usuario_id = $1) AS total_participantes,
+        (SELECT COALESCE(SUM(d.valor_total), 0) FROM divida d WHERE d.despesa_compartilhada_id = dc.id AND d.usuario_id = $1) AS valor_a_receber_total,
+        (SELECT COALESCE(SUM(d.valor_pago), 0) FROM divida d WHERE d.despesa_compartilhada_id = dc.id AND d.usuario_id = $1) AS valor_recebido_total
       FROM despesa_compartilhada dc
       LEFT JOIN conta c ON c.id = dc.conta_origem_id
       LEFT JOIN cartao_credito cc ON cc.id = dc.cartao_id
       LEFT JOIN categoria cat ON cat.id = dc.categoria_id
+      WHERE dc.usuario_id = $1
       ORDER BY dc.data DESC, dc.criado_em DESC
-    `);
+    `, [userId]);
     return res.rows;
   }
 
-  async criar(dados: CriarDespesaCompartilhadaInput) {
+  async criar(userId: string, dados: CriarDespesaCompartilhadaInput) {
     const client = await getClient();
     try {
       await client.query('BEGIN');
 
-      // 1. Cria a despesa compartilhada
+      // 1. Cria a despesa compartilhada com usuario_id
       const dcRes = await client.query(`
         INSERT INTO despesa_compartilhada (
-          descricao, valor_total, data, conta_origem_id, cartao_id, categoria_id
+          usuario_id, descricao, valor_total, data, conta_origem_id, cartao_id, categoria_id
         )
-        VALUES ($1, $2, COALESCE($3, CURRENT_DATE), $4, $5, $6)
+        VALUES ($1, $2, $3, COALESCE($4, CURRENT_DATE), $5, $6, $7)
         RETURNING *
       `, [
+        userId,
         dados.descricao,
         dados.valor_total,
         dados.data || null,
@@ -45,27 +47,37 @@ export class DespesasCompartilhadasService {
 
       // 2. Se foi paga por conta, debita o valor total da conta de origem
       if (dados.conta_origem_id) {
-        const cRes = await client.query('SELECT moeda_id FROM conta WHERE id = $1', [dados.conta_origem_id]);
+        const cRes = await client.query(
+          'SELECT moeda_id FROM conta WHERE id = $1 AND usuario_id = $2',
+          [dados.conta_origem_id, userId]
+        );
         if (cRes.rows.length > 0) {
           const moedaId = cRes.rows[0].moeda_id;
           let categoriaId = dados.categoria_id;
           if (!categoriaId) {
-            const catRes = await client.query("SELECT id FROM categoria WHERE tipo = 'despesa' ORDER BY criado_em ASC LIMIT 1");
+            const catRes = await client.query(
+              "SELECT id FROM categoria WHERE tipo = 'despesa' AND usuario_id = $1 ORDER BY criado_em ASC LIMIT 1",
+              [userId]
+            );
             if (catRes.rows.length > 0) {
               categoriaId = catRes.rows[0].id;
             } else {
-              const novaCat = await client.query("INSERT INTO categoria (nome, tipo, icone, cor) VALUES ('Outros Gastos', 'despesa', 'MoreHorizontal', '#6B7280') RETURNING id");
+              const novaCat = await client.query(
+                "INSERT INTO categoria (usuario_id, nome, tipo, icone, cor) VALUES ($1, 'Outros Gastos', 'despesa', 'MoreHorizontal', '#6B7280') RETURNING id",
+                [userId]
+              );
               categoriaId = novaCat.rows[0].id;
             }
           }
 
           await client.query(`
             INSERT INTO lancamento (
-              tipo, valor, moeda_id, data_compra, forma_pagamento, 
+              usuario_id, tipo, valor, moeda_id, data_compra, forma_pagamento, 
               conta_id, categoria_id, descricao, status
             )
-            VALUES ('despesa', $1, $2, COALESCE($3, CURRENT_DATE), 'pix_debito', $4, $5, $6, 'efetivado')
+            VALUES ($1, 'despesa', $2, $3, COALESCE($4, CURRENT_DATE), 'pix_debito', $5, $6, $7, 'efetivado')
           `, [
+            userId,
             dados.valor_total,
             moedaId,
             dados.data || null,
@@ -77,8 +89,8 @@ export class DespesasCompartilhadasService {
           await client.query(`
             UPDATE conta 
             SET saldo_atual = saldo_atual - $1, atualizado_em = NOW() 
-            WHERE id = $2
-          `, [dados.valor_total, dados.conta_origem_id]);
+            WHERE id = $2 AND usuario_id = $3
+          `, [dados.valor_total, dados.conta_origem_id, userId]);
         }
       }
 
@@ -86,11 +98,12 @@ export class DespesasCompartilhadasService {
       for (const p of dados.participantes) {
         await client.query(`
           INSERT INTO divida (
-            pessoa_id, valor_total, valor_pago, valor_perdoado, motivo, 
+            usuario_id, pessoa_id, valor_total, valor_pago, valor_perdoado, motivo, 
             conta_origem_id, despesa_compartilhada_id, status, data
           )
-          VALUES ($1, $2, 0.00, 0.00, $3, $4, $5, 'pendente', COALESCE($6, CURRENT_DATE))
+          VALUES ($1, $2, $3, 0.00, 0.00, $4, $5, $6, 'pendente', COALESCE($7, CURRENT_DATE))
         `, [
+          userId,
           p.pessoa_id,
           p.valor,
           `Cota da despesa: ${dados.descricao}`,
@@ -110,12 +123,15 @@ export class DespesasCompartilhadasService {
     }
   }
 
-  async excluir(id: string): Promise<boolean> {
+  async excluir(id: string, userId: string): Promise<boolean> {
     const client = await getClient();
     try {
       await client.query('BEGIN');
 
-      const dcRes = await client.query('SELECT * FROM despesa_compartilhada WHERE id = $1 FOR UPDATE', [id]);
+      const dcRes = await client.query(
+        'SELECT * FROM despesa_compartilhada WHERE id = $1 AND usuario_id = $2 FOR UPDATE',
+        [id, userId]
+      );
       if (dcRes.rows.length === 0) {
         await client.query('ROLLBACK');
         return false;
@@ -124,28 +140,34 @@ export class DespesasCompartilhadasService {
 
       // 1. Se foi paga por conta bancária, estorna o valor total debitado
       if (despesa.conta_origem_id) {
-        await client.query('UPDATE conta SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() WHERE id = $2', [
-          despesa.valor_total,
-          despesa.conta_origem_id
-        ]);
-        // Remove lançamento de despesa associado
-        await client.query(`DELETE FROM lancamento WHERE conta_id = $1 AND descricao LIKE $2 AND tipo = 'despesa'`, [
-          despesa.conta_origem_id,
-          `%${despesa.descricao}%`
-        ]);
+        await client.query(
+          'UPDATE conta SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() WHERE id = $2 AND usuario_id = $3',
+          [despesa.valor_total, despesa.conta_origem_id, userId]
+        );
+        await client.query(
+          `DELETE FROM lancamento WHERE conta_id = $1 AND descricao LIKE $2 AND tipo = 'despesa' AND usuario_id = $3`,
+          [despesa.conta_origem_id, `%${despesa.descricao}%`, userId]
+        );
       }
 
       // 2. Remove cobranças PIX associadas às dívidas desta divisão
       await client.query(`
         DELETE FROM cobranca_pix 
-        WHERE divida_id IN (SELECT id FROM divida WHERE despesa_compartilhada_id = $1)
-      `, [id]);
+        WHERE divida_id IN (SELECT id FROM divida WHERE despesa_compartilhada_id = $1 AND usuario_id = $2)
+          AND usuario_id = $2
+      `, [id, userId]);
 
       // 3. Remove dívidas filhas geradas
-      await client.query('DELETE FROM divida WHERE despesa_compartilhada_id = $1', [id]);
+      await client.query(
+        'DELETE FROM divida WHERE despesa_compartilhada_id = $1 AND usuario_id = $2',
+        [id, userId]
+      );
 
       // 4. Remove a despesa compartilhada
-      await client.query('DELETE FROM despesa_compartilhada WHERE id = $1', [id]);
+      await client.query(
+        'DELETE FROM despesa_compartilhada WHERE id = $1 AND usuario_id = $2',
+        [id, userId]
+      );
 
       await client.query('COMMIT');
       return true;

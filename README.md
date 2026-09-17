@@ -1,127 +1,174 @@
-# Sistema de Gestão Financeira Pessoal (Self-Hosted) — Fase 1 + Fase 2
+# 💎 Sistema de Gestão Financeira Pessoal (Multiusuário & Self-Hosted)
 
-Sistema web responsivo (mobile-first e desktop) com suporte a PWA instalável, single-user, self-hosted via Docker em VPS própria, com foco absoluto em privacidade e integridade financeira.
-
----
-
-## 🚀 O Que Foi Entregue
-
-### Fase 1 (MVP)
-1. **Segurança e Autenticação:** Setup inicial de usuário único (`/setup`), hash de senha bcrypt, sessão com cookies `HttpOnly`, expiração configurável por inatividade (padrão 12h).
-2. **Modo Privacidade:** Toggle instantâneo com ícone de olho no cabeçalho para mascarar todos os valores como `R$ ••••`.
-3. **Contas e Instituições:** Bancos, carteiras digitais e dinheiro em espécie com **Saldo Consolidado**.
-4. **Categorias e Subcategorias:** Estrutura em árvore, paleta de cores e categorias padrão pré-cadastradas.
-5. **Lançamentos & Extrato:** Lançamentos com atualização atômica de saldos e tabela pré-calculada `resumo_mensal`.
-6. **Dashboard:** Gráficos de evolução temporal e gastos por categoria.
-7. **PWA:** Web App Manifest e Service Worker para instalação no celular.
-
-### Fase 2 (Cartões, Recorrência e Parcelamentos)
-1. **Cartões de Crédito & Limites:**
-   - CRUD de Cartões de Crédito (instituição, apelido, limite, dia de fechamento e dia de vencimento).
-   - Cálculo automático de **Limite Utilizado**, **Limite Disponível** e percentual de comprometimento com barras de progresso visuais.
-   - Consulta detalhada da **Fatura do Mês** com navegação mês a mês e extrato completo dos lançamentos do ciclo.
-2. **Ciclo de Fatura:**
-   - Cálculo no backend via `calcularCompetenciaFatura`: compras feitas após o `dia_fechamento` caem automaticamente na fatura do mês seguinte.
-   - Tratamento de dois eixos de data: data de competência real (`data_compra`) e mês da fatura (`data_competencia_fatura`).
-3. **Compras Parceladas:**
-   - Registro de compra parcelada com cálculo exato de centavos.
-   - Geração automática e atômica das $N$ parcelas futuras associadas aos ciclos de fatura corretos.
-   - Acompanhamento do progresso das parcelas pagas vs. restantes e saldo devedor remanescente.
-4. **Recorrências (Despesas e Receitas Fixas):**
-   - Gestão de despesas e receitas recorrentes com frequência (mensal, bimestral, trimestral, semestral, anual), dia de referência e dia estimado na fatura.
-   - Verificação inteligente de status no mês: distinção clara entre **"Já Lançado"** e **"Previsto, ainda não lançado"**.
-   - Ação rápida para efetivar o lançamento na competência atual com 1 clique.
-5. **Home / Dashboard Atualizado:**
-   - Bloco de **Contas e Faturas a Pagar do Mês** destacando faturas abertas e custos fixos pendentes.
-   - Card de **Comprometimento Futuro** exibindo a soma das parcelas de cartões vincendas nos próximos meses.
-   - Modal de lançamento rápido com suporte a seleção de cartão de crédito e opção integrada de parcelamento.
-
-### Fase 3 (Patrimônio e Câmbio)
-1. **Investimentos & Carteira:**
-   - Cadastro de ativos por tipo (`Renda Fixa`, `Ações`, `FIIs`, `Cripto`, `Fundos`, `Previdência`, `Outros`).
-   - Movimentações de Aporte, Resgate, Rendimento e Atualização de Saldo.
-   - Cálculo automático de **Preço Médio ponderado** no backend.
-   - Resumo da carteira com Valor Aplicado, Saldo Atual, Rentabilidade Acumulada nominal e percentual.
-   - Gráfico de Alocação por Classe de Ativo.
-2. **Câmbio & PTAX Oficial:**
-   - Ingestão direta e oficial do Banco Central do Brasil (BACEN Olinda API) para USD e EUR.
-   - Histórico diário com cálculo de **Médias Móveis (MM7 e MM30)** e volatilidade nos últimos 30 dias.
-   - Política rigorosa: dados históricos e observados, **sem previsões ou projeções especulativas**.
-   - Calculadora de **Ganho Cambial**: comparação entre data de compra e liquidação com apuração de ganho/perda nominal e percentual.
-3. **Simulador de Juros Compostos:**
-   - Simulação interativa com valor inicial, aportes mensais e prazo configurável (1 a 30 anos).
-   - Comparativo com benchmarks da economia brasileira: Poupança, Tesouro Selic/CDI, CDB 120% do CDI e Tesouro IPCA+.
-   - Gráfico de área comparativo detalhando Total Investido vs. Rendimento dos Benchmarks.
-
-### Fase 4 (Social e Cobranças PIX)
-1. **Pessoas & Contatos:**
-   - Cadastro de amigos/contatos com nome, apelido, telefone e e-mail.
-   - Painel inteligente de destaque: "Quem deve para você agora".
-2. **Empréstimos Individuais & Contas a Receber:**
-   - Registro de empréstimos concedidos com débito atômico da conta bancária de origem e integração como ativo a receber.
-   - Histórico com acompanhamento de valor total, valor pago e saldo devedor remanescente.
-3. **Divisão de Despesas em Grupo (Rachar a Conta):**
-   - Lançamento do valor total de contas coletivas (ex: pizza, bar) com cálculo inicial de divisão igualitária e cotas individuais editáveis.
-   - Geração automática de dívidas vinculadas para cada participante.
-4. **Quitações, Baixas Parciais e Perdão:**
-   - Baixa manual ou via PIX com suporte a pagamentos parciais e crédito na conta de destino com lançamento de receita.
-   - Opção de **Perdão de Dívida**: encerra a pendência sem gerar receitas espúrias ou distorcer o fluxo de caixa histórico.
-5. **Cobranças PIX com Gerador EMVCo Oficial (Bacen):**
-   - Gerador local de payload PIX Copia-e-Cola e QR Code no padrão oficial do Banco Central (BR Code) com CRC16-CCITT polinomial `0x1021`.
-   - 100% privado e self-hosted, sem envio de chaves para APIs de terceiros.
-   - Vínculo direto de cobranças a empréstimos e despesas: baixa automatizada com 1 clique.
-
-### Fase 5 (Extras e Refinamento — Conclusão do Sistema)
-1. **Simulador de Gastos & Impacto Futuro:**
-   - Simulação antecipada de compras em Real ou Moeda Estrangeira (USD / EUR).
-   - Conversão por cotação PTAX oficial diária ou cotação personalizada.
-   - Simulação à vista (alerta de saldo e cheque especial) ou parcelada (projeção mês a mês nas faturas futuras do cartão e impacto no limite).
-2. **Relatórios & Exportação Universal:**
-   - Exportação em **CSV universal** (delimitador `;` e UTF-8 BOM para abertura perfeita no Excel brasileiro) para Extrato de Lançamentos e Balanço Patrimonial Consolidado.
-   - Relatório financeiro formatado com estilos `@media print` para impressão direta e exportação em PDF.
-3. **Backup Automatizado & Administração da VPS:**
-   - Painel de Administração e Backup com métricas de integridade (tamanho do banco, volume de transações).
-   - Botão para download instantâneo do **Dump SQL completo** com 1 clique (`/api/sistema/backup`).
-   - Script autônomo `scripts/backup.sh` com rotina de retenção automática de 7 dias para cron/Docker.
-4. **Refinamento de Performance:**
-   - Migração `0005_extras_e_performance.sql` com índices compostos para aceleração de consultas temporais e agregações.
+Um sistema completo, moderno e responsivo de controle financeiro pessoal, patrimonial e social, com arquitetura **Multiusuário** com isolamento rigoroso de dados em nível de linha (Row-Level Isolation), instalável como PWA (Progressive Web App) e preparado para implantação em VPS própria via Docker.
 
 ---
 
-## 🛠️ Como Rodar com Docker Compose (Comando Único)
+## 🌟 Destaques do Sistema
 
+- 👥 **Arquitetura Multiusuário com Isolamento Estrito**: Cada usuário possui seu próprio ecossistema financeiro isolado (contas, transações, categorias, cartões, investimentos, devedores e cobranças PIX).
+- 👑 **Conta de Demonstração (Admin)**: Conta pré-configurada com patrimônio simulado superior a **R$ 380.000,00**, contemplando múltiplos bancos, cartões de alta renda, carteira de investimentos diversificada (Renda Fixa, Ações, FIIs, Cripto), despesas fixas e empréstimos sociais.
+- 🔒 **Segurança & Privacidade**: Senhas com hash `bcrypt` (12 rounds de salt), autenticação baseada em cookies `HttpOnly`, expiração de sessão por inatividade, proteção estrita contra IDOR (Insecure Direct Object Reference) em 100% dos endpoints e **Modo Privacidade** com 1 clique para mascarar valores na tela.
+- ⚡ **PWA & Mobile-First**: Interface responsiva construída com Tailwind CSS, menus adaptáveis para desktop e mobile, e Service Worker para instalação como app nativo no celular ou computador.
+- 📊 **Gestão Patrimonial & Câmbio PTAX Oficial**: Rastreamento de investimentos com cálculo de Preço Médio, alocação por classes e integração direta com a API Olinda do Banco Central do Brasil para cotações diárias do Dólar e Euro com médias móveis (MM7/MM30).
+- 🤝 **Módulo Social & Cobranças PIX EMVCo**: Divisão de contas coletivas ("rachar a conta"), controle de empréstimos individuais com quitação atômica e gerador local de QR Code e chave Copia-e-Cola PIX padrão Banco Central (BR Code) sem intermediários.
+- 💾 **Backup & Recuperação**: Rotinas de backup automatizado para VPS com retenção configurável e exportação de Dump SQL completo restrita ao perfil Administrador.
+
+---
+
+## 🚀 Credenciais da Conta de Demonstração
+
+Para explorar o sistema imediatamente com dados realistas pré-carregados:
+
+| Perfil | Usuário | Senha | Saldo em Contas | Patrimônio Investido |
+| :--- | :--- | :--- | :--- | :--- |
+| **Administrador (Demo)** | `admin` | `admin123` | **~R$ 381.800,00** | **~R$ 210.000,00** |
+
+> 💡 Na tela de login, você pode clicar no botão **"Preencher Demonstração"** para autenticar instantaneamente como Administrador.
+
+### Novos Usuários
+Ao registrar uma nova conta através da aba **"Cadastrar Nova Conta"**, o usuário inicia com uma área limpa (saldo zero e total privacidade em relação a outros usuários), recebendo automaticamente sua própria árvore hierárquica de categorias padrão de receitas e despesas.
+
+---
+
+## 🏛️ Arquitetura e Modelo de Isolamento Multiusuário
+
+O isolamento é garantido tanto a nível de banco de dados quanto a nível de aplicação:
+
+1. **Camada de Banco de Dados**:
+   - Todas as tabelas de escopo do usuário contêm a chave estrangeira `usuario_id UUID REFERENCES usuario(id) ON DELETE CASCADE`.
+   - Índices compostos `(usuario_id, ...)` aceleram buscas filtradas e garantem performance.
+   - Tabelas isoladas: `conta`, `cartao_credito`, `compra_parcelada`, `recorrencia`, `categoria`, `lancamento`, `resumo_mensal`, `investimento`, `movimentacao_investimento`, `pessoa`, `despesa_compartilhada`, `divida`, `chave_pix`, `cobranca_pix` e `lista_desejo`.
+2. **Camada de Aplicação (Backend)**:
+   - Todo request autenticado extrai a identidade do usuário através do cookie seguro de sessão.
+   - Os serviços e queries SQL exigem obrigatoriamente `WHERE usuario_id = $userId` em consultas, inserções, atualizações e exclusões.
+   - Tentativas de acesso ou alteração em recursos de terceiros (IDOR) retornam status `404 Not Found`.
+3. **Controle de Acesso Baseado em Perfis (RBAC)**:
+   - Usuários com papel `admin` possuem acesso a métricas de infraestrutura do sistema e ao dump SQL completo do banco de dados (`/api/sistema/backup`).
+   - Usuários padrão (`user`) utilizam os relatórios pessoais em formato CSV e PDF para exportação de seus dados particulares.
+
+---
+
+## 📦 Módulos Funcionais
+
+### 1. Dashboard & Visão Geral
+- Saldo Consolidado de contas e carteiras.
+- Comprometimento futuro de faturas de cartões de crédito.
+- Contas e faturas a pagar no mês com alertas de vencimento.
+- Gráficos de evolução temporal (Receitas vs. Despesas) e distribuição de despesas por categoria.
+
+### 2. Contas & Cartões
+- Cadastro de bancos (Itaú, Nubank, BTG, XP, etc.), contas correntes, contas salário, poupança, investimentos e dinheiro físico.
+- Gestão de cartões de crédito com cálculo automático de ciclo de fatura, fechamento, vencimento, limite utilizado e limite disponível.
+- Compras parceladas com distribuição automática entre as faturas futuras.
+
+### 3. Recorrências & Orçamento
+- Despesas e receitas fixas com periodicidade customizada (mensal, bimestral, anual).
+- Verificação automática entre "Já Lançado" e "Previsto".
+- Lançamento rápido de despesas recorrentes com um clique.
+
+### 4. Investimentos & Carteira de Ativos
+- Classes de ativos: Renda Fixa (CDB, LC, LCI, LCA), Tesouro Direto, Ações, FIIs, Criptomoedas e Fundos.
+- Movimentações de aporte, resgate, rendimento e atualização de cotação.
+- Cálculo automático de preço médio ponderado e rentabilidade total acumulada.
+- Gráfico de alocação patrimonial por classe.
+
+### 5. Social & Divisão de Contas
+- Cadastro de contatos e controle de devedores ("Quem deve para você").
+- Empréstimos concedidos com débito atômico na conta de origem e controle de saldo devedor.
+- Divisão de despesas coletivas com cotas proporcionais ou igualitárias.
+- Quitações parciais, integrais ou perdão de dívidas.
+
+### 6. Cobranças PIX (EMVCo / BR Code)
+- Cadastro de chaves PIX (CPF, CNPJ, E-mail, Telefone, Chave Aleatória).
+- Geração local de QR Code e código Copia-e-Cola em conformidade com o padrão oficial do Banco Central do Brasil.
+- Baixa automatizada de empréstimos após liquidação via PIX.
+
+### 7. Simuladores Financeiros
+- **Simulador de Juros Compostos**: Aportes mensais, prazo e comparação com benchmarks (Poupança, CDI, 120% CDI, IPCA+).
+- **Simulador de Gastos Futuros**: Previsão de impacto de compras à vista ou parceladas no saldo e no limite dos cartões.
+- **Calculadora de Ganho Cambial**: Apuração de variações de compra e venda de moeda estrangeira baseada na PTAX oficial do BACEN.
+
+### 8. Lista de Desejos
+- Itens de consumo planejados com link, estimativa de valor, nível de prioridade e histórico de preços.
+- Conversão direta de item desejado em despesa realizada quando adquirido.
+
+### 9. Relatórios & Exportação
+- Exportação em CSV universal com delimitador `;` e UTF-8 BOM para abertura perfeita no Microsoft Excel brasileiro.
+- Relatórios impressos otimizados via CSS `@media print`.
+
+---
+
+## 🛠️ Como Executar com Docker Compose (Recomendado)
+
+O projeto está totalmente configurado para execução conteinerizada através do Docker Compose, incluindo banco de dados PostgreSQL 16 e aplicação compilada em contêiner multi-stage.
+
+### 1. Clonar o repositório e configurar variáveis
 ```bash
+git clone <URL_DO_REPOSITORIO>
+cd "projeto financeiro"
 cp .env.example .env
+```
+
+### 2. Iniciar a aplicação
+```bash
 docker compose up -d --build
 ```
-Acesse em: **http://localhost:3001**
+
+O contêiner executa automaticamente:
+1. Verificação de saúde do banco de dados PostgreSQL.
+2. Execução das migrações (`0001` até `0011_multiusuario_e_isolamento.sql`).
+3. Execução do seed de inicialização com a conta de demonstração do Administrador.
+
+Acesse o sistema em seu navegador:
+👉 **http://localhost:3001**
 
 ---
 
-## 💻 Como Rodar em Modo de Desenvolvimento Local
+## 💻 Desenvolvimento Local
 
-### 1. Backend
+Caso deseje executar os serviços individualmente fora do Docker:
+
+### Pré-requisitos
+- Node.js 20+
+- PostgreSQL 16 rodando localmente
+
+### 1. Configurar Banco de Dados
+Crie um banco de dados chamado `financeiro` no PostgreSQL local e configure a variável `DATABASE_URL` no arquivo `backend/.env`.
+
+### 2. Backend
 ```bash
 cd backend
 npm install
 npm run db:migrate
+npm run db:seed
 npm run dev
 ```
-Roda em `http://localhost:3001`.
+Servidor backend inicializado em: `http://localhost:3001`
 
-### 2. Frontend
+### 3. Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Roda em `http://localhost:5173`.
+Interface frontend inicializada em: `http://localhost:5173`
 
+---
 
-### 2. Frontend
+## 🛡️ Rotinas de Backup em Produção (VPS)
+
+Para programar backups periódicos do banco de dados na VPS hospedeira via crontab:
+
 ```bash
-cd frontend
-npm install
-npm run dev
+# Adicionar no crontab da VPS (execução diária às 03:00)
+0 3 * * * /caminho/do/projeto/scripts/backup.sh >> /var/log/backup_financeiro.log 2>&1
 ```
-Roda em `http://localhost:5173`.
+
+O script comprime o banco em `.sql.gz` e mantém automaticamente a retenção configurada (padrão de 7 dias).
+
+---
+
+## 📄 Licença
+
+Este projeto é disponibilizado para uso pessoal e auto-hospedagem com foco em privacidade e integridade financeira.

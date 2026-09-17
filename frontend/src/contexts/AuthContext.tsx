@@ -7,7 +7,8 @@ interface AuthContextType {
   loading: boolean;
   setupRequired: boolean;
   login: (login: string, pass: string) => Promise<void>;
-  setup: (login: string, pass: string) => Promise<void>;
+  register: (login: string, pass: string, nome?: string) => Promise<void>;
+  setup: (login: string, pass: string, nome?: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
@@ -42,8 +43,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSetupRequired(false);
   };
 
-  const setup = async (loginStr: string, passStr: string) => {
-    const res = await api.setup({ login: loginStr, senha: passStr });
+  const register = async (loginStr: string, passStr: string, nome?: string) => {
+    const res = await api.register({ login: loginStr, senha: passStr, nome });
+    setUser(res.user);
+    setSetupRequired(false);
+  };
+
+  const setup = async (loginStr: string, passStr: string, nome?: string) => {
+    const res = await api.setup({ login: loginStr, senha: passStr, nome });
     setUser(res.user);
     setSetupRequired(false);
   };
@@ -59,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, setupRequired, login, setup, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, loading, setupRequired, login, register, setup, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,10 +1,13 @@
 export interface User {
   id: string;
   login: string;
+  nome?: string;
+  role?: 'admin' | 'user';
 }
 
 export interface AuthStatus {
   setupRequired: boolean;
+  allowRegistration?: boolean;
   authenticated: boolean;
   user: User | null;
 }

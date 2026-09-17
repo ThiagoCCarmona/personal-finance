@@ -25,7 +25,7 @@ export interface PosicaoAtivo {
 }
 
 export class InvestimentosService {
-  async listar(): Promise<PosicaoAtivo[]> {
+  async listar(userId: string): Promise<PosicaoAtivo[]> {
     const sql = [
       'SELECT',
       '  i.id,',
@@ -45,11 +45,12 @@ export class InvestimentosService {
       'FROM investimento i',
       'JOIN moeda m ON m.id = i.moeda_id',
       'LEFT JOIN movimentacao_investimento m_inv ON m_inv.investimento_id = i.id',
+      'WHERE i.usuario_id = $1',
       'GROUP BY i.id, m.codigo',
       'ORDER BY i.tipo, i.nome'
     ].join('\n');
 
-    const { rows } = await query(sql);
+    const { rows } = await query(sql, [userId]);
 
     return rows.map((row: any) => {
       const saldoAplicado = Number((row.total_aportado - row.total_resgatado).toFixed(2));
@@ -79,7 +80,7 @@ export class InvestimentosService {
     });
   }
 
-  async criar(data: CriarInvestimentoInput) {
+  async criar(userId: string, data: CriarInvestimentoInput) {
     let moedaId = data.moeda_id;
     if (!moedaId) {
       const { rows: brl } = await query("SELECT id FROM moeda WHERE codigo = 'BRL' LIMIT 1");
@@ -94,11 +95,12 @@ export class InvestimentosService {
     }
 
     const sql = `
-      INSERT INTO investimento (tipo, nome, ticker, moeda_id, instituicao, indexador, taxa_anual, data_vencimento) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+      INSERT INTO investimento (usuario_id, tipo, nome, ticker, moeda_id, instituicao, indexador, taxa_anual, data_vencimento) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
       RETURNING *
     `;
     const { rows } = await query(sql, [
+      userId,
       data.tipo,
       data.nome,
       data.ticker || null,
@@ -111,7 +113,7 @@ export class InvestimentosService {
     return rows[0];
   }
 
-  async atualizar(id: string, data: AtualizarInvestimentoInput) {
+  async atualizar(id: string, userId: string, data: AtualizarInvestimentoInput) {
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
@@ -127,21 +129,30 @@ export class InvestimentosService {
     if (fields.length === 0) return null;
 
     values.push(id);
-    const sql = 'UPDATE investimento SET ' + fields.join(', ') + ', atualizado_em = NOW() WHERE id = $' + idx + ' RETURNING *';
+    const idIdx = idx++;
+    values.push(userId);
+    const userIdx = idx++;
+
+    const sql = 'UPDATE investimento SET ' + fields.join(', ') + ', atualizado_em = NOW() WHERE id = $' + idIdx + ' AND usuario_id = $' + userIdx + ' RETURNING *';
     const { rows } = await query(sql, values);
     return rows[0] || null;
   }
 
-  async remover(id: string) {
-    const { rowCount } = await query('DELETE FROM investimento WHERE id = $1', [id]);
+  async remover(id: string, userId: string) {
+    const { rowCount } = await query('DELETE FROM investimento WHERE id = $1 AND usuario_id = $2', [id, userId]);
     return (rowCount ?? 0) > 0;
   }
 
-  async listarMovimentacoes(investimentoId?: string) {
-    let sql = 'SELECT m.*, i.nome as investimento_nome, i.ticker as investimento_ticker, i.tipo as investimento_tipo FROM movimentacao_investimento m JOIN investimento i ON i.id = m.investimento_id';
-    const values: any[] = [];
+  async listarMovimentacoes(userId: string, investimentoId?: string) {
+    let sql = `
+      SELECT m.*, i.nome as investimento_nome, i.ticker as investimento_ticker, i.tipo as investimento_tipo 
+      FROM movimentacao_investimento m 
+      JOIN investimento i ON i.id = m.investimento_id 
+      WHERE i.usuario_id = $1
+    `;
+    const values: any[] = [userId];
     if (investimentoId) {
-      sql += ' WHERE m.investimento_id = $1';
+      sql += ' AND m.investimento_id = $2';
       values.push(investimentoId);
     }
     sql += ' ORDER BY m.data DESC, m.criado_em DESC';
@@ -150,14 +161,24 @@ export class InvestimentosService {
     return rows;
   }
 
-  async registrarMovimentacao(data: CriarMovimentacaoInput) {
+  async registrarMovimentacao(userId: string, data: CriarMovimentacaoInput) {
+    // Validar se o investimento pertence ao usuário
+    const { rows: invRows } = await query(
+      'SELECT id FROM investimento WHERE id = $1 AND usuario_id = $2',
+      [data.investimento_id, userId]
+    );
+    if (invRows.length === 0) {
+      throw new Error('Investimento não encontrado ou não autorizado.');
+    }
+
     const cotacao = data.cotacao_praticada || (data.valor / data.quantidade);
     const sql = `
-      INSERT INTO movimentacao_investimento (investimento_id, tipo, valor, quantidade, cotacao_praticada, data, observacao) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      INSERT INTO movimentacao_investimento (usuario_id, investimento_id, tipo, valor, quantidade, cotacao_praticada, data, observacao) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
       RETURNING *
     `;
     const { rows } = await query(sql, [
+      userId,
       data.investimento_id,
       data.tipo,
       data.valor,
@@ -169,13 +190,16 @@ export class InvestimentosService {
     return rows[0];
   }
 
-  async removerMovimentacao(movimentacaoId: string) {
-    const { rowCount } = await query('DELETE FROM movimentacao_investimento WHERE id = $1', [movimentacaoId]);
+  async removerMovimentacao(movimentacaoId: string, userId: string) {
+    const { rowCount } = await query(
+      'DELETE FROM movimentacao_investimento WHERE id = $1 AND usuario_id = $2',
+      [movimentacaoId, userId]
+    );
     return (rowCount ?? 0) > 0;
   }
 
-  async getResumoCarteira() {
-    const posicoes = await this.listar();
+  async getResumoCarteira(userId: string) {
+    const posicoes = await this.listar(userId);
     let totalPatrimonio = 0;
     let totalRendimentos = 0;
     let totalAportado = 0;
@@ -211,3 +235,5 @@ export class InvestimentosService {
     };
   }
 }
+
+export const investimentosService = new InvestimentosService();

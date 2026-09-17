@@ -4,7 +4,7 @@ import { lancamentosService } from '../lancamentos/lancamentos.service.js';
 import { calcularCompetenciaFatura } from '../../utils/fatura.utils.js';
 
 export class RecorrenciasService {
-  async listAll(anoMesParam?: string) {
+  async listAll(userId: string, anoMesParam?: string) {
     const hoje = new Date();
     const anoMes = anoMesParam || `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
@@ -17,8 +17,9 @@ export class RecorrenciasService {
        LEFT JOIN conta c ON c.id = r.conta_id
        LEFT JOIN cartao_credito card ON card.id = r.cartao_id
        JOIN categoria cat ON cat.id = r.categoria_id
-       WHERE r.ativo = TRUE
-       ORDER BY r.dia_referencia ASC`
+       WHERE r.usuario_id = $1 AND r.ativo = TRUE
+       ORDER BY r.dia_referencia ASC`,
+      [userId]
     );
 
     // Para cada recorrência, verifica se já foi lançado um item neste mês
@@ -28,12 +29,13 @@ export class RecorrenciasService {
           `SELECT id, valor, data_compra, status 
            FROM lancamento 
            WHERE recorrencia_id = $1 
+             AND usuario_id = $2
              AND (
-               TO_CHAR(data_compra, 'YYYY-MM') = $2 
-               OR TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $2
+               TO_CHAR(data_compra, 'YYYY-MM') = $3 
+               OR TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $3
              )
            LIMIT 1`,
-          [rec.id, anoMes]
+          [rec.id, userId, anoMes]
         );
 
         const lancamento = lancRows[0] || null;
@@ -51,21 +53,22 @@ export class RecorrenciasService {
     return result;
   }
 
-  async getById(id: string) {
-    const { rows } = await query('SELECT * FROM recorrencia WHERE id = $1', [id]);
+  async getById(id: string, userId: string) {
+    const { rows } = await query('SELECT * FROM recorrencia WHERE id = $1 AND usuario_id = $2', [id, userId]);
     return rows[0] || null;
   }
 
-  async create(input: RecorrenciaInput) {
+  async create(userId: string, input: RecorrenciaInput) {
     const { rows } = await query(
       `INSERT INTO recorrencia (
-        tipo, descricao, valor, categoria_id, forma_pagamento,
+        usuario_id, tipo, descricao, valor, categoria_id, forma_pagamento,
         conta_id, cartao_id, frequencia, dia_referencia, dia_estimado_na_fatura,
         data_inicio, data_fim, ativo
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
       [
+        userId,
         input.tipo,
         input.descricao.trim(),
         input.valor,
@@ -84,7 +87,7 @@ export class RecorrenciasService {
     return rows[0];
   }
 
-  async update(id: string, input: Partial<RecorrenciaInput>) {
+  async update(id: string, userId: string, input: Partial<RecorrenciaInput>) {
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
@@ -142,36 +145,40 @@ export class RecorrenciasService {
       values.push(input.ativo);
     }
 
-    if (fields.length === 0) return this.getById(id);
+    if (fields.length === 0) return this.getById(id, userId);
 
     fields.push(`atualizado_em = NOW()`);
     values.push(id);
+    const idIdx = idx++;
+    values.push(userId);
+    const userIdx = idx++;
 
     const { rows } = await query(
-      `UPDATE recorrencia SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+      `UPDATE recorrencia SET ${fields.join(', ')} WHERE id = $${idIdx} AND usuario_id = $${userIdx} RETURNING *`,
       values
     );
     return rows[0] || null;
   }
 
-  async delete(id: string) {
-    const { rowCount } = await query('DELETE FROM recorrencia WHERE id = $1', [id]);
+  async delete(id: string, userId: string) {
+    const { rowCount } = await query('DELETE FROM recorrencia WHERE id = $1 AND usuario_id = $2', [id, userId]);
     return rowCount ? rowCount > 0 : false;
   }
 
-  async lancarNaCompetencia(id: string, anoMesParam?: string) {
+  async lancarNaCompetencia(id: string, userId: string, anoMesParam?: string) {
     const hoje = new Date();
     const anoMes = anoMesParam || `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
-    const rec = await this.getById(id);
+    const rec = await this.getById(id, userId);
     if (!rec) throw new Error('Recorrência não encontrada.');
 
     // Verifica se já foi lançado neste mês
     const { rows: lancExistente } = await query(
       `SELECT id FROM lancamento 
        WHERE recorrencia_id = $1 
-         AND (TO_CHAR(data_compra, 'YYYY-MM') = $2 OR TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $2)`,
-      [id, anoMes]
+         AND usuario_id = $2
+         AND (TO_CHAR(data_compra, 'YYYY-MM') = $3 OR TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $3)`,
+      [id, userId, anoMes]
     );
 
     if (lancExistente.length > 0) {
@@ -183,7 +190,10 @@ export class RecorrenciasService {
 
     let dataCompetenciaFatura: string | null = null;
     if (rec.cartao_id) {
-      const { rows: cartaoRows } = await query('SELECT * FROM cartao_credito WHERE id = $1', [rec.cartao_id]);
+      const { rows: cartaoRows } = await query(
+        'SELECT * FROM cartao_credito WHERE id = $1 AND usuario_id = $2',
+        [rec.cartao_id, userId]
+      );
       if (cartaoRows.length > 0) {
         const cartao = cartaoRows[0];
         const diaComparacao = rec.dia_estimado_na_fatura || rec.dia_referencia;
@@ -193,8 +203,8 @@ export class RecorrenciasService {
       }
     }
 
-    // Cria o lançamento via serviço para respeitar as regras financeiras e atômicas
-    const novoLancamento = await lancamentosService.create({
+    // Cria o lançamento via serviço para respeitar as regras financeiras e atômicas com o userId
+    const novoLancamento = await lancamentosService.create(userId, {
       tipo: rec.tipo,
       valor: parseFloat(rec.valor),
       data_compra: dataCompra,

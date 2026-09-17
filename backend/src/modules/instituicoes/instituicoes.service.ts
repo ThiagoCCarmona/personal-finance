@@ -2,15 +2,23 @@ import { query } from '../../config/database.js';
 import { InstituicaoInput } from './instituicoes.schemas.js';
 
 export class InstituicoesService {
-  async listAll() {
+  async listAll(userId?: string) {
+    const params: any[] = [];
+    let joinConta = 'LEFT JOIN conta c ON c.instituicao_id = i.id AND c.ativo = TRUE';
+    if (userId) {
+      params.push(userId);
+      joinConta += ` AND c.usuario_id = $${params.length}`;
+    }
+
     const { rows } = await query(
       `SELECT i.*, 
         COUNT(c.id) as total_contas,
         COALESCE(SUM(c.saldo_atual), 0) as saldo_total
        FROM instituicao i
-       LEFT JOIN conta c ON c.instituicao_id = i.id AND c.ativo = TRUE
+       ${joinConta}
        GROUP BY i.id
-       ORDER BY i.nome ASC`
+       ORDER BY i.nome ASC`,
+      params
     );
     return rows;
   }
@@ -69,10 +77,9 @@ export class InstituicoesService {
   }
 
   async delete(id: string) {
-    // Verifica se possui contas atreladas
     const { rows: contas } = await query('SELECT COUNT(*) as count FROM conta WHERE instituicao_id = $1', [id]);
     if (parseInt(contas[0].count, 10) > 0) {
-      throw new Error('Não é possível excluir uma instituição que possui contas vinculadas. Desative-a ou exclua as contas primeiro.');
+      throw new Error('Esta instituição possui contas bancárias vinculadas. Desative-a em vez de excluí-la.');
     }
 
     const { rowCount } = await query('DELETE FROM instituicao WHERE id = $1', [id]);

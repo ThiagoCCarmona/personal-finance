@@ -2,7 +2,7 @@ import { query } from '../../config/database.js';
 
 export class RelatoriosService {
   // Exporta extrato completo em CSV formatado para Excel (delimitador ';' e UTF-8 com BOM)
-  async exportarLancamentosCsv(dataInicio?: string, dataFim?: string, contaId?: string): Promise<string> {
+  async exportarLancamentosCsv(userId: string, dataInicio?: string, dataFim?: string, contaId?: string): Promise<string> {
     let sql = `
       SELECT 
         l.data_compra,
@@ -21,9 +21,9 @@ export class RelatoriosService {
       LEFT JOIN conta c ON c.id = l.conta_id
       LEFT JOIN cartao_credito cc ON cc.id = l.cartao_id
       LEFT JOIN categoria cat ON cat.id = l.categoria_id
-      WHERE 1=1
+      WHERE l.usuario_id = $1
     `;
-    const params: any[] = [];
+    const params: any[] = [userId];
 
     if (dataInicio) {
       params.push(dataInicio);
@@ -42,7 +42,6 @@ export class RelatoriosService {
 
     const res = await query(sql, params);
 
-    // Header CSV com ponto e vírgula
     const headers = ['Data Compra', 'Competência Fatura', 'Descrição', 'Tipo', 'Valor (BRL)', 'Moeda', 'Conta', 'Cartão', 'Categoria', 'Forma Pagamento', 'Status'];
     const rows = res.rows.map(r => [
       r.data_compra,
@@ -58,13 +57,12 @@ export class RelatoriosService {
       r.status || ''
     ]);
 
-    // UTF-8 BOM para garantir acentos corretos no Excel brasileiro
     const BOM = '\uFEFF';
     return BOM + [headers.join(';'), ...rows.map(row => row.join(';'))].join('\r\n');
   }
 
   // Exporta balanço patrimonial consolidado (contas, investimentos e contas a receber)
-  async exportarPatrimonioCsv(): Promise<string> {
+  async exportarPatrimonioCsv(userId: string): Promise<string> {
     const BOM = '\uFEFF';
     const lines: string[] = [];
 
@@ -76,8 +74,8 @@ export class RelatoriosService {
       FROM conta c
       JOIN instituicao i ON i.id = c.instituicao_id
       JOIN moeda m ON m.id = c.moeda_id
-      WHERE c.ativo = TRUE
-    `);
+      WHERE c.usuario_id = $1 AND c.ativo = TRUE
+    `, [userId]);
     contasRes.rows.forEach(c => {
       lines.push(`"${c.apelido}";"${c.instituicao}";${c.moeda};${Number(c.saldo_atual).toFixed(2).replace('.', ',')}`);
     });
@@ -87,12 +85,19 @@ export class RelatoriosService {
     lines.push('=== CARTEIRA DE INVESTIMENTOS ===');
     lines.push('Ativo;Tipo;Ticker;Instituição;Quantidade;Preço Médio (BRL);Total Aplicado (BRL)');
     const invRes = await query(`
-      SELECT i.nome, i.tipo, i.ticker, i.instituicao, i.quantidade_total, i.preco_medio, (i.quantidade_total * i.preco_medio) AS total
+      SELECT i.nome, i.tipo, i.ticker, i.instituicao,
+        COALESCE(SUM(CASE WHEN m.tipo = 'aporte' THEN m.quantidade WHEN m.tipo = 'resgate' THEN -m.quantidade ELSE 0 END), 0) as quantidade_total,
+        COALESCE(SUM(CASE WHEN m.tipo = 'aporte' THEN m.valor WHEN m.tipo = 'resgate' THEN -m.valor ELSE 0 END), 0) as total
       FROM investimento i
-      WHERE i.ativo = TRUE
-    `);
+      LEFT JOIN movimentacao_investimento m ON m.investimento_id = i.id
+      WHERE i.usuario_id = $1 AND i.ativo = TRUE
+      GROUP BY i.id
+    `, [userId]);
     invRes.rows.forEach(i => {
-      lines.push(`"${i.nome}";${i.tipo};"${i.ticker || ''}";"${i.instituicao || ''}";${Number(i.quantidade_total).toFixed(4).replace('.', ',')};${Number(i.preco_medio).toFixed(2).replace('.', ',')};${Number(i.total).toFixed(2).replace('.', ',')}`);
+      const qtd = parseFloat(i.quantidade_total || '0');
+      const tot = parseFloat(i.total || '0');
+      const pm = qtd > 0 ? tot / qtd : 0;
+      lines.push(`"${i.nome}";${i.tipo};"${i.ticker || ''}";"${i.instituicao || ''}";${Number(qtd).toFixed(4).replace('.', ',')};${Number(pm).toFixed(2).replace('.', ',')};${Number(tot).toFixed(2).replace('.', ',')}`);
     });
 
     lines.push('');
@@ -103,8 +108,8 @@ export class RelatoriosService {
       SELECT p.nome AS devedor, d.motivo, d.data, d.valor_total, d.valor_pago, (d.valor_total - d.valor_pago - d.valor_perdoado) AS saldo, d.status
       FROM divida d
       JOIN pessoa p ON p.id = d.pessoa_id
-      WHERE d.status IN ('pendente', 'parcial')
-    `);
+      WHERE d.usuario_id = $1 AND d.status IN ('pendente', 'parcial')
+    `, [userId]);
     divRes.rows.forEach(d => {
       lines.push(`"${d.devedor}";"${d.motivo}";${d.data};${Number(d.valor_total).toFixed(2).replace('.', ',')};${Number(d.valor_pago).toFixed(2).replace('.', ',')};${Number(d.saldo).toFixed(2).replace('.', ',')};${d.status}`);
     });
@@ -112,9 +117,9 @@ export class RelatoriosService {
     return BOM + lines.join('\r\n');
   }
 
-  async obterDashboard(dataInicio?: string, dataFim?: string, contaId?: string) {
-    let whereClause = "WHERE l.status = 'efetivado'";
-    const params: any[] = [];
+  async obterDashboard(userId: string, dataInicio?: string, dataFim?: string, contaId?: string) {
+    let whereClause = "WHERE l.status = 'efetivado' AND l.usuario_id = $1";
+    const params: any[] = [userId];
 
     if (dataInicio) {
       params.push(dataInicio);
@@ -176,10 +181,11 @@ export class RelatoriosService {
         COALESCE(SUM(CASE WHEN tipo = 'despesa' THEN valor ELSE 0 END), 0) AS despesas
       FROM lancamento
       WHERE status = 'efetivado'
+        AND usuario_id = $1
         AND data_compra >= CURRENT_DATE - INTERVAL '6 months'
       GROUP BY TO_CHAR(data_compra, 'YYYY-MM')
       ORDER BY mes_ano ASC
-    `);
+    `, [userId]);
 
     const evolucaoMensal = evolucaoRes.rows.map(r => ({
       mes_ano: r.mes_ano,

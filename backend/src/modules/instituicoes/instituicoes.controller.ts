@@ -4,7 +4,8 @@ import { instituicaoSchema } from './instituicoes.schemas.js';
 
 export class InstituicoesController {
   async list(req: FastifyRequest, reply: FastifyReply) {
-    const list = await instituicoesService.listAll();
+    const userId = (req as any).user?.id;
+    const list = await instituicoesService.listAll(userId);
     return reply.send(list);
   }
 

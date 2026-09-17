@@ -22,7 +22,7 @@ export interface ItemDesejo {
 }
 
 export class ListaDesejoService {
-  async listar(filtros?: { status?: string; prioridade?: string; busca?: string }): Promise<ItemDesejo[]> {
+  async listar(userId: string, filtros?: { status?: string; prioridade?: string; busca?: string }): Promise<ItemDesejo[]> {
     let sql = `
       SELECT 
         ld.*,
@@ -30,10 +30,10 @@ export class ListaDesejoService {
         c.cor AS categoria_cor
       FROM lista_desejo ld
       LEFT JOIN categoria c ON c.id = ld.categoria_id
-      WHERE 1=1
+      WHERE ld.usuario_id = $1
     `;
-    const params: any[] = [];
-    let idx = 1;
+    const params: any[] = [userId];
+    let idx = 2;
 
     if (filtros?.status) {
       sql += ` AND ld.status = $${idx++}`;
@@ -64,13 +64,13 @@ export class ListaDesejoService {
     }));
   }
 
-  async getById(id: string): Promise<ItemDesejo | null> {
+  async getById(id: string, userId: string): Promise<ItemDesejo | null> {
     const { rows } = await query(`
       SELECT ld.*, c.nome as categoria_nome, c.cor as categoria_cor
       FROM lista_desejo ld
       LEFT JOIN categoria c ON c.id = ld.categoria_id
-      WHERE ld.id = $1
-    `, [id]);
+      WHERE ld.id = $1 AND ld.usuario_id = $2
+    `, [id, userId]);
     if (rows.length === 0) return null;
     const r = rows[0];
     return {
@@ -81,7 +81,7 @@ export class ListaDesejoService {
     };
   }
 
-  async criar(dados: CriarItemDesejoInput): Promise<ItemDesejo> {
+  async criar(userId: string, dados: CriarItemDesejoInput): Promise<ItemDesejo> {
     const hoje = new Date().toISOString().split('T')[0];
 
     // Normaliza links com ID único e histórico individual de preços
@@ -121,11 +121,12 @@ export class ListaDesejoService {
 
     const { rows } = await query(`
       INSERT INTO lista_desejo (
-        nome, link, links, preco_estimado, prioridade, categoria_id, tipo_gasto, status, observacoes, data_alvo, historico_precos
+        usuario_id, nome, link, links, preco_estimado, prioridade, categoria_id, tipo_gasto, status, observacoes, data_alvo, historico_precos
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `, [
+      userId,
       dados.nome.trim(),
       linksFinal[0]?.url || dados.link || null,
       JSON.stringify(linksFinal),
@@ -138,10 +139,10 @@ export class ListaDesejoService {
       dados.data_alvo || null,
       JSON.stringify(historicoFinal)
     ]);
-    return this.getById(rows[0].id) as Promise<ItemDesejo>;
+    return this.getById(rows[0].id, userId) as Promise<ItemDesejo>;
   }
 
-  async atualizar(id: string, dados: AtualizarItemDesejoInput): Promise<ItemDesejo | null> {
+  async atualizar(id: string, userId: string, dados: AtualizarItemDesejoInput): Promise<ItemDesejo | null> {
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
@@ -157,20 +158,23 @@ export class ListaDesejoService {
       }
     });
 
-    if (fields.length === 0) return this.getById(id);
+    if (fields.length === 0) return this.getById(id, userId);
 
     fields.push(`atualizado_em = NOW()`);
     values.push(id);
+    const idIdx = idx++;
+    values.push(userId);
+    const userIdx = idx++;
 
-    const sql = `UPDATE lista_desejo SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+    const sql = `UPDATE lista_desejo SET ${fields.join(', ')} WHERE id = $${idIdx} AND usuario_id = $${userIdx} RETURNING *`;
     const { rows } = await query(sql, values);
     if (rows.length === 0) return null;
-    return this.getById(id);
+    return this.getById(id, userId);
   }
 
-  async adicionarPrecoHistorico(id: string, entrada: { link_id?: string; link_url?: string; data?: string; preco: number; loja?: string; observacao?: string }): Promise<ItemDesejo> {
-    const item = await this.getById(id);
-    if (!item) throw new Error('Item não encontrado');
+  async adicionarPrecoHistorico(id: string, userId: string, entrada: { link_id?: string; link_url?: string; data?: string; preco: number; loja?: string; observacao?: string }): Promise<ItemDesejo> {
+    const item = await this.getById(id, userId);
+    if (!item) throw new Error('Item não encontrado ou não autorizado');
 
     const hoje = new Date().toISOString().split('T')[0];
     const precoNum = Number(entrada.preco);
@@ -182,11 +186,9 @@ export class ListaDesejoService {
       observacao: entrada.observacao || ''
     };
 
-    // 1. Atualiza histórico geral
     const historicoAtual = Array.isArray(item.historico_precos) ? [...item.historico_precos] : [];
     historicoAtual.push(novoRegistro);
 
-    // 2. Atualiza o histórico específico do link correspondente
     const linksAtuais: any[] = Array.isArray(item.links) ? [...item.links] : [];
     if (linksAtuais.length > 0) {
       let indexLink = -1;
@@ -221,54 +223,60 @@ export class ListaDesejoService {
     await query(`
       UPDATE lista_desejo 
       SET historico_precos = $1, links = $2, preco_estimado = $3, atualizado_em = NOW() 
-      WHERE id = $4
-    `, [JSON.stringify(historicoAtual), JSON.stringify(linksAtuais), precoNum, id]);
+      WHERE id = $4 AND usuario_id = $5
+    `, [JSON.stringify(historicoAtual), JSON.stringify(linksAtuais), precoNum, id, userId]);
 
-    return this.getById(id) as Promise<ItemDesejo>;
+    return this.getById(id, userId) as Promise<ItemDesejo>;
   }
 
-  async excluir(id: string): Promise<boolean> {
-    const { rowCount } = await query('DELETE FROM lista_desejo WHERE id = $1', [id]);
+  async excluir(id: string, userId: string): Promise<boolean> {
+    const { rowCount } = await query('DELETE FROM lista_desejo WHERE id = $1 AND usuario_id = $2', [id, userId]);
     return (rowCount ?? 0) > 0;
   }
 
-  async marcarComoComprado(id: string, dados?: ComprarItemDesejoInput): Promise<ItemDesejo> {
+  async marcarComoComprado(id: string, userId: string, dados?: ComprarItemDesejoInput): Promise<ItemDesejo> {
     const client = await getClient();
     try {
       await client.query('BEGIN');
 
-      const itemRes = await client.query('SELECT * FROM lista_desejo WHERE id = $1 FOR UPDATE', [id]);
-      if (itemRes.rows.length === 0) throw new Error('Item da lista de desejos não encontrado');
+      const itemRes = await client.query(
+        'SELECT * FROM lista_desejo WHERE id = $1 AND usuario_id = $2 FOR UPDATE',
+        [id, userId]
+      );
+      if (itemRes.rows.length === 0) throw new Error('Item da lista de desejos não encontrado ou não autorizado');
       const item = itemRes.rows[0];
 
       await client.query(`
         UPDATE lista_desejo 
         SET status = 'comprado', comprado_em = NOW(), atualizado_em = NOW()
-        WHERE id = $1
-      `, [id]);
+        WHERE id = $1 AND usuario_id = $2
+      `, [id, userId]);
 
       // Se passou conta ou cartão, gera o lançamento contábil
       if (dados && (dados.conta_id || dados.cartao_id)) {
         const valorFinal = dados.valor_pago || parseFloat(item.preco_estimado);
         const catId = dados.categoria_id || item.categoria_id;
 
-        // Pega moeda padrão BRL
         const { rows: brl } = await client.query("SELECT id FROM moeda WHERE codigo = 'BRL' LIMIT 1");
         const moedaId = brl[0]?.id;
 
         let categoriaId = catId;
         if (!categoriaId) {
-          const { rows: cat } = await client.query("SELECT id FROM categoria WHERE tipo = 'despesa' LIMIT 1");
+          const { rows: cat } = await client.query(
+            "SELECT id FROM categoria WHERE tipo = 'despesa' AND usuario_id = $1 LIMIT 1",
+            [userId]
+          );
           categoriaId = cat[0]?.id;
         }
 
         await client.query(`
           INSERT INTO lancamento (
-            tipo, valor, moeda_id, data_compra, forma_pagamento, 
+            usuario_id, tipo, valor, moeda_id, data_compra, forma_pagamento, 
             conta_id, cartao_id, categoria_id, descricao, status
           )
-          VALUES ('despesa', $1, $2, COALESCE($3, CURRENT_DATE), $4, $5, $6, $7, 'efetivado')
+          VALUES ($1, 'despesa', $2, $3, COALESCE($4, CURRENT_DATE), $5, $6, $7, $8, $9, 'efetivado')
         `, [
+          userId,
           valorFinal,
           moedaId,
           dados.data_compra || null,
@@ -280,12 +288,15 @@ export class ListaDesejoService {
         ]);
 
         if (dados.conta_id) {
-          await client.query(`UPDATE conta SET saldo_atual = saldo_atual - $1, atualizado_em = NOW() WHERE id = $2`, [valorFinal, dados.conta_id]);
+          await client.query(
+            `UPDATE conta SET saldo_atual = saldo_atual - $1, atualizado_em = NOW() WHERE id = $2 AND usuario_id = $3`,
+            [valorFinal, dados.conta_id, userId]
+          );
         }
       }
 
       await client.query('COMMIT');
-      return this.getById(id) as Promise<ItemDesejo>;
+      return this.getById(id, userId) as Promise<ItemDesejo>;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

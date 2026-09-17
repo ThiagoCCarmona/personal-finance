@@ -1,7 +1,7 @@
 import { query } from '../../config/database.js';
 
 export class DashboardService {
-  async getResumoMes(anoMes?: string) {
+  async getResumoMes(userId: string, anoMes?: string) {
     const hoje = new Date();
     const targetAnoMes = anoMes || `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
@@ -11,17 +11,18 @@ export class DashboardService {
     const mesAnteriorDate = new Date(ano, mes - 2, 1);
     const mesAnteriorAnoMes = `${mesAnteriorDate.getFullYear()}-${String(mesAnteriorDate.getMonth() + 1).padStart(2, '0')}`;
 
-    // Gastos no mês atual (considerando competência contábil real ou mês da fatura)
+    // Gastos no mês atual
     const { rows: rowsAtual } = await query(
       `SELECT 
         COALESCE(SUM(CASE WHEN tipo = 'despesa' THEN valor ELSE 0 END), 0) as total_despesas,
         COALESCE(SUM(CASE WHEN tipo = 'receita' THEN valor ELSE 0 END), 0) as total_receitas
        FROM lancamento
-       WHERE (
-         TO_CHAR(data_compra, 'YYYY-MM') = $1
-         OR TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $1
-       ) AND status = 'efetivado'`,
-      [targetAnoMes]
+       WHERE usuario_id = $1
+         AND (
+           TO_CHAR(data_compra, 'YYYY-MM') = $2
+           OR TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $2
+         ) AND status = 'efetivado'`,
+      [userId, targetAnoMes]
     );
 
     // Gastos no mês anterior
@@ -30,16 +31,20 @@ export class DashboardService {
         COALESCE(SUM(CASE WHEN tipo = 'despesa' THEN valor ELSE 0 END), 0) as total_despesas,
         COALESCE(SUM(CASE WHEN tipo = 'receita' THEN valor ELSE 0 END), 0) as total_receitas
        FROM lancamento
-       WHERE (
-         TO_CHAR(data_compra, 'YYYY-MM') = $1
-         OR TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $1
-       ) AND status = 'efetivado'`,
-      [mesAnteriorAnoMes]
+       WHERE usuario_id = $1
+         AND (
+           TO_CHAR(data_compra, 'YYYY-MM') = $2
+           OR TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $2
+         ) AND status = 'efetivado'`,
+      [userId, mesAnteriorAnoMes]
     );
 
     // Saldo Consolidado disponível
     const { rows: rowsSaldo } = await query(
-      `SELECT COALESCE(SUM(saldo_atual), 0) as saldo_consolidado FROM conta WHERE ativo = TRUE`
+      `SELECT COALESCE(SUM(saldo_atual), 0) as saldo_consolidado 
+       FROM conta 
+       WHERE usuario_id = $1 AND ativo = TRUE`,
+      [userId]
     );
 
     const despesasAtual = parseFloat(rowsAtual[0]?.total_despesas || '0');
@@ -66,7 +71,7 @@ export class DashboardService {
     };
   }
 
-  async getGastosPorCategoria(anoMes?: string) {
+  async getGastosPorCategoria(userId: string, anoMes?: string) {
     const hoje = new Date();
     const targetAnoMes = anoMes || `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
@@ -76,15 +81,16 @@ export class DashboardService {
         SUM(l.valor) as total
        FROM lancamento l
        JOIN categoria c ON c.id = l.categoria_id
-       WHERE (
-         TO_CHAR(l.data_compra, 'YYYY-MM') = $1 
-         OR TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $1
-       )
+       WHERE l.usuario_id = $1
+         AND (
+           TO_CHAR(l.data_compra, 'YYYY-MM') = $2 
+           OR TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $2
+         )
          AND l.tipo = 'despesa'
          AND l.status = 'efetivado'
        GROUP BY c.id, c.nome, c.icone, c.cor
        ORDER BY total DESC`,
-      [targetAnoMes]
+      [userId, targetAnoMes]
     );
 
     const totalGeral = rows.reduce((acc, r) => acc + parseFloat(r.total), 0);
@@ -99,17 +105,18 @@ export class DashboardService {
     }));
   }
 
-  async getEvolucaoMensal(numMeses: number = 6) {
+  async getEvolucaoMensal(userId: string, numMeses: number = 6) {
     const { rows } = await query(
       `SELECT 
         ano_mes,
         SUM(total_despesas) as total_despesas,
         SUM(total_receitas) as total_receitas
        FROM resumo_mensal
+       WHERE usuario_id = $1
        GROUP BY ano_mes
        ORDER BY ano_mes DESC
-       LIMIT $1`,
-      [numMeses]
+       LIMIT $2`,
+      [userId, numMeses]
     );
 
     return rows.reverse().map(r => ({
@@ -120,10 +127,7 @@ export class DashboardService {
     }));
   }
 
-  /**
-   * Contas e Faturas a Pagar do Mês + Comprometimento Futuro
-   */
-  async getContasAPagarDoMes(anoOuAnoMes?: string | number, mesParam?: number) {
+  async getContasAPagarDoMes(userId: string, anoOuAnoMes?: string | number, mesParam?: number) {
     const hoje = new Date();
     let targetAnoMes = '';
     if (typeof anoOuAnoMes === 'number' && typeof mesParam === 'number') {
@@ -140,7 +144,8 @@ export class DashboardService {
         inst.nome as instituicao_nome, inst.cor as instituicao_cor
        FROM cartao_credito c
        JOIN instituicao inst ON inst.id = c.instituicao_id
-       WHERE c.ativo = TRUE`
+       WHERE c.usuario_id = $1 AND c.ativo = TRUE`,
+      [userId]
     );
 
     const faturas = await Promise.all(
@@ -149,9 +154,10 @@ export class DashboardService {
           `SELECT COALESCE(SUM(valor), 0) as total_fatura, COUNT(id) as total_itens
            FROM lancamento
            WHERE cartao_id = $1 
+             AND usuario_id = $2
              AND tipo = 'despesa'
-             AND TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $2`,
-          [cartao.id, targetAnoMes]
+             AND TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $3`,
+          [cartao.id, userId, targetAnoMes]
         );
 
         const totalFatura = parseFloat(faturaRows[0]?.total_fatura || '0');
@@ -170,7 +176,7 @@ export class DashboardService {
       })
     );
 
-    // 2. Recorrências do mês com distinção "já lançado" vs "previsto, ainda não lançado"
+    // 2. Recorrências do mês
     const { rows: recorrencias } = await query(
       `SELECT r.*,
         cat.nome as categoria_nome, cat.icone as categoria_icone, cat.cor as categoria_cor,
@@ -179,8 +185,9 @@ export class DashboardService {
        JOIN categoria cat ON cat.id = r.categoria_id
        LEFT JOIN conta c ON c.id = r.conta_id
        LEFT JOIN cartao_credito card ON card.id = r.cartao_id
-       WHERE r.ativo = TRUE
-       ORDER BY r.dia_referencia ASC`
+       WHERE r.usuario_id = $1 AND r.ativo = TRUE
+       ORDER BY r.dia_referencia ASC`,
+      [userId]
     );
 
     const recorrenciasStatus = await Promise.all(
@@ -188,12 +195,13 @@ export class DashboardService {
         const { rows: lancRows } = await query(
           `SELECT id, valor, status FROM lancamento
            WHERE recorrencia_id = $1 
+             AND usuario_id = $2
              AND (
-               TO_CHAR(data_compra, 'YYYY-MM') = $2
-               OR TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $2
+               TO_CHAR(data_compra, 'YYYY-MM') = $3
+               OR TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $3
              )
            LIMIT 1`,
-          [rec.id, targetAnoMes]
+          [rec.id, userId, targetAnoMes]
         );
 
         const jaLancado = lancRows.length > 0;
@@ -215,21 +223,21 @@ export class DashboardService {
       })
     );
 
-    // 3. Comprometimento Futuro (soma de todas as parcelas com fatura posterior ao mês atual)
+    // 3. Comprometimento Futuro
     const { rows: comprometimentoRows } = await query(
       `SELECT COALESCE(SUM(l.valor), 0) as total_comprometido,
         COUNT(l.id) as total_parcelas_futuras
        FROM lancamento l
-       WHERE l.compra_parcelada_id IS NOT NULL 
+       WHERE l.usuario_id = $1
+         AND l.compra_parcelada_id IS NOT NULL 
          AND l.tipo = 'despesa'
-         AND l.data_competencia_fatura > $1`,
-      [`${targetAnoMes}-01`]
+         AND l.data_competencia_fatura > $2`,
+      [userId, `${targetAnoMes}-01`]
     );
 
     const totalComprometimentoFuturo = parseFloat(comprometimentoRows[0]?.total_comprometido || '0');
     const parcelasFuturasCount = parseInt(comprometimentoRows[0]?.total_parcelas_futuras || '0', 10);
 
-    // Total de contas e faturas a pagar no mês (apenas despesas)
     const totalFaturasMes = faturas.reduce((acc, f) => acc + f.total_fatura, 0);
     const totalRecorrenciasNaoLancadas = recorrenciasStatus
       .filter(r => !r.ja_lancado && r.tipo === 'despesa')
