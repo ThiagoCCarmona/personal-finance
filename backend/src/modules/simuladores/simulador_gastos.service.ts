@@ -127,7 +127,13 @@ export class SimuladorGastosService {
          WHERE l.usuario_id = $1
            AND l.tipo = 'despesa'
            AND l.cartao_id IS NOT NULL
-           AND TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $2`,
+           AND TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $2
+           AND NOT EXISTS (
+             SELECT 1 FROM fatura_paga fp
+             WHERE fp.cartao_id = l.cartao_id
+               AND fp.usuario_id = l.usuario_id
+               AND fp.ano_mes = $2
+           )`,
         [userId, hojeAnoMes]
       );
       totalFaturasMes = parseFloat(rowsFat[0]?.total || '0');

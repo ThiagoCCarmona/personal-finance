@@ -9,4 +9,11 @@ export const cartaoSchema = z.object({
   ativo: z.boolean().optional().default(true),
 });
 
+export const pagarFaturaSchema = z.object({
+  anoMes: z.string().regex(/^\d{4}-\d{2}$/, 'Formato de mês inválido (YYYY-MM)'),
+  dataPagamento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de data inválido (YYYY-MM-DD)').optional(),
+  contaId: z.string().uuid('ID de conta inválido').optional().nullable(),
+});
+
 export type CartaoInput = z.infer<typeof cartaoSchema>;
+export type PagarFaturaInput = z.infer<typeof pagarFaturaSchema>;

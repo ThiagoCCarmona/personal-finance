@@ -1,5 +1,5 @@
-import { query } from '../../config/database.js';
-import { CartaoInput } from './cartoes.schemas.js';
+import { query, withTransaction } from '../../config/database.js';
+import { CartaoInput, PagarFaturaInput } from './cartoes.schemas.js';
 
 export class CartoesService {
   async listAll(userId: string) {
@@ -17,34 +17,48 @@ export class CartoesService {
       [userId]
     );
 
-    // Para cada cartão, calcula o limite utilizado total e o valor da fatura do mês atual
+    // Para cada cartão, calcula o limite utilizado (descontando faturas pagas) e o valor da fatura do mês atual
     const result = await Promise.all(
       cartoes.map(async (cartao) => {
-        // Soma das faturas abertas / futuras a partir do mês atual
+        // Soma das faturas abertas / futuras a partir do mês atual, IGNORANDO competências que já foram pagas em fatura_paga
         const { rows: gastoTotalRows } = await query(
-          `SELECT COALESCE(SUM(valor), 0) as total_utilizado
-           FROM lancamento
-           WHERE cartao_id = $1 
-             AND usuario_id = $2
-             AND tipo = 'despesa'
-             AND (data_competencia_fatura >= $3 OR data_competencia_fatura IS NULL)`,
+          `SELECT COALESCE(SUM(l.valor), 0) as total_utilizado
+           FROM lancamento l
+           WHERE l.cartao_id = $1 
+             AND l.usuario_id = $2
+             AND l.tipo = 'despesa'
+             AND (l.data_competencia_fatura >= $3 OR l.data_competencia_fatura IS NULL)
+             AND NOT EXISTS (
+               SELECT 1 FROM fatura_paga fp
+               WHERE fp.cartao_id = l.cartao_id
+                 AND fp.usuario_id = l.usuario_id
+                 AND fp.ano_mes = TO_CHAR(l.data_competencia_fatura, 'YYYY-MM')
+             )`,
           [cartao.id, userId, `${anoMesAtual}-01`]
         );
 
-        // Soma dos gastos específicos da fatura do mês atual
+        // Soma dos gastos específicos da fatura do mês atual e verifica se já está paga
         const { rows: faturaAtualRows } = await query(
-          `SELECT COALESCE(SUM(valor), 0) as total_fatura
-           FROM lancamento
-           WHERE cartao_id = $1 
-             AND usuario_id = $2
-             AND tipo = 'despesa'
-             AND TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $3`,
+          `SELECT 
+            COALESCE(SUM(l.valor), 0) as total_fatura,
+            EXISTS (
+              SELECT 1 FROM fatura_paga fp 
+              WHERE fp.cartao_id = $1 
+                AND fp.usuario_id = $2 
+                AND fp.ano_mes = $3
+            ) as fatura_paga
+           FROM lancamento l
+           WHERE l.cartao_id = $1 
+             AND l.usuario_id = $2
+             AND l.tipo = 'despesa'
+             AND TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $3`,
           [cartao.id, userId, anoMesAtual]
         );
 
         const limite = parseFloat(cartao.limite);
         const limiteUtilizado = parseFloat(gastoTotalRows[0]?.total_utilizado || '0');
-        const faturaAtual = parseFloat(faturaAtualRows[0]?.total_fatura || '0');
+        const faturaAtualTotal = parseFloat(faturaAtualRows[0]?.total_fatura || '0');
+        const faturaPaga = Boolean(faturaAtualRows[0]?.fatura_paga);
         const limiteDisponivel = Math.max(0, limite - limiteUtilizado);
 
         return {
@@ -52,7 +66,8 @@ export class CartoesService {
           limite: limite,
           limite_utilizado: limiteUtilizado,
           limite_disponivel: limiteDisponivel,
-          fatura_atual: faturaAtual,
+          fatura_atual: faturaAtualTotal,
+          fatura_atual_paga: faturaPaga,
           percentual_utilizado: limite > 0 ? parseFloat(((limiteUtilizado / limite) * 100).toFixed(1)) : 0,
         };
       })
@@ -74,6 +89,14 @@ export class CartoesService {
   }
 
   async create(userId: string, input: CartaoInput) {
+    const { rows: instituicao } = await query(
+      'SELECT id FROM instituicao WHERE id = $1 AND (usuario_id = $2 OR usuario_id IS NULL)',
+      [input.instituicao_id, userId]
+    );
+    if (instituicao.length === 0) {
+      throw new Error('Instituição bancária não encontrada ou inativa.');
+    }
+
     const { rows } = await query(
       `INSERT INTO cartao_credito (usuario_id, instituicao_id, apelido, limite, dia_fechamento, dia_vencimento, ativo)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -88,7 +111,7 @@ export class CartoesService {
         input.ativo ?? true,
       ]
     );
-    return rows[0];
+    return this.getById(rows[0].id, userId);
   }
 
   async update(id: string, userId: string, input: Partial<CartaoInput>) {
@@ -175,13 +198,179 @@ export class CartoesService {
 
     const totalFatura = itens.reduce((acc, item) => acc + parseFloat(item.valor), 0);
 
+    // Verifica status de pagamento em fatura_paga
+    const { rows: pagamentos } = await query(
+      `SELECT fp.*, c.apelido as conta_apelido
+       FROM fatura_paga fp
+       LEFT JOIN conta c ON c.id = fp.conta_id
+       WHERE fp.cartao_id = $1 AND fp.usuario_id = $2 AND fp.ano_mes = $3`,
+      [cartaoId, userId, anoMes]
+    );
+
+    const pagamento = pagamentos[0] || null;
+
     return {
       cartao,
       anoMes,
       totalFatura,
       quantidadeItens: itens.length,
+      paga: Boolean(pagamento),
+      pagamento: pagamento ? {
+        id: pagamento.id,
+        valor_pago: parseFloat(pagamento.valor_pago),
+        data_pagamento: pagamento.data_pagamento,
+        conta_id: pagamento.conta_id,
+        conta_apelido: pagamento.conta_apelido || null,
+        lancamento_id: pagamento.lancamento_id,
+      } : null,
       itens,
     };
+  }
+
+  async pagarFatura(cartaoId: string, userId: string, dados: PagarFaturaInput) {
+    const cartao = await this.getById(cartaoId, userId);
+    if (!cartao) throw new Error('Cartão não encontrado.');
+
+    const anoMes = dados.anoMes;
+    const dataPagamento = dados.dataPagamento || new Date().toISOString().split('T')[0];
+
+    // 1. Verifica se já está paga
+    const { rows: jaPaga } = await query(
+      `SELECT id FROM fatura_paga WHERE cartao_id = $1 AND usuario_id = $2 AND ano_mes = $3`,
+      [cartaoId, userId, anoMes]
+    );
+    if (jaPaga.length > 0) {
+      throw new Error(`A fatura ${anoMes} deste cartão já consta como paga.`);
+    }
+
+    // 2. Calcula total da fatura
+    const { rows: itens } = await query(
+      `SELECT COALESCE(SUM(valor), 0) as total, COUNT(id) as count
+       FROM lancamento
+       WHERE cartao_id = $1 
+         AND usuario_id = $2 
+         AND tipo = 'despesa'
+         AND TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $3`,
+      [cartaoId, userId, anoMes]
+    );
+
+    const totalFatura = parseFloat(itens[0]?.total || '0');
+    if (totalFatura <= 0) {
+      throw new Error(`A fatura ${anoMes} não possui despesas para pagar.`);
+    }
+
+    return withTransaction(async (client) => {
+      let lancamentoId: string | null = null;
+
+      // 3. Se escolheu conta bancária para debitar
+      if (dados.contaId) {
+        const { rows: contaRows } = await client.query(
+          `SELECT id, apelido, saldo_atual, moeda_id FROM conta WHERE id = $1 AND usuario_id = $2 AND ativo = TRUE`,
+          [dados.contaId, userId]
+        );
+        if (contaRows.length === 0) {
+          throw new Error('Conta bancária selecionada não foi encontrada ou está inativa.');
+        }
+
+        const conta = contaRows[0];
+
+        // Busca ou seleciona categoria adequada para pagamento de fatura
+        const { rows: catRows } = await client.query(
+          `SELECT id FROM categoria 
+           WHERE usuario_id = $1 AND tipo = 'despesa'
+           ORDER BY 
+             CASE 
+               WHEN LOWER(nome) LIKE '%fatura%' THEN 1
+               WHEN LOWER(nome) LIKE '%cart%' THEN 2
+               WHEN LOWER(nome) LIKE '%financeiro%' THEN 3
+               ELSE 4
+             END ASC, nome ASC
+           LIMIT 1`,
+          [userId]
+        );
+
+        if (catRows.length === 0) {
+          throw new Error('Nenhuma categoria de despesa cadastrada para registrar o pagamento.');
+        }
+
+        const categoriaId = catRows[0].id;
+        const moedaId = conta.moeda_id;
+
+        // Cria lançamento de saída na conta bancária
+        const [ano, mes] = anoMes.split('-');
+        const descLancamento = `Pagamento de Fatura - ${cartao.apelido} (${mes}/${ano})`;
+
+        const { rows: lancRows } = await client.query(
+          `INSERT INTO lancamento (
+            usuario_id, tipo, valor, moeda_id, data_compra, forma_pagamento,
+            conta_id, categoria_id, descricao, status
+          ) VALUES (
+            $1, 'despesa', $2, $3, $4, 'transferencia', $5, $6, $7, 'efetivado'
+          ) RETURNING id`,
+          [userId, totalFatura, moedaId, dataPagamento, conta.id, categoriaId, descLancamento]
+        );
+
+        lancamentoId = lancRows[0].id;
+
+        // Deduz saldo da conta bancária
+        await client.query(
+          `UPDATE conta SET saldo_atual = saldo_atual - $1, atualizado_em = NOW() WHERE id = $2`,
+          [totalFatura, conta.id]
+        );
+      }
+
+      // 4. Registra a fatura como paga
+      const { rows: faturaPagaRows } = await client.query(
+        `INSERT INTO fatura_paga (
+          usuario_id, cartao_id, ano_mes, valor_pago, data_pagamento, conta_id, lancamento_id
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7
+        ) RETURNING *`,
+        [userId, cartaoId, anoMes, totalFatura, dataPagamento, dados.contaId || null, lancamentoId]
+      );
+
+      return {
+        success: true,
+        message: dados.contaId 
+          ? `Fatura de R$ ${totalFatura.toFixed(2)} paga com sucesso e debitada da conta "${dados.contaId}"!`
+          : `Fatura de R$ ${totalFatura.toFixed(2)} marcada como paga com sucesso!`,
+        pagamento: faturaPagaRows[0],
+      };
+    });
+  }
+
+  async estornarPagamentoFatura(cartaoId: string, userId: string, anoMes: string) {
+    const { rows } = await query(
+      `SELECT * FROM fatura_paga WHERE cartao_id = $1 AND usuario_id = $2 AND ano_mes = $3`,
+      [cartaoId, userId, anoMes]
+    );
+
+    if (rows.length === 0) {
+      throw new Error(`Esta fatura não consta como paga.`);
+    }
+
+    const pagamento = rows[0];
+
+    return withTransaction(async (client) => {
+      // Se teve lançamento e conta vinculada, desfaz o débito
+      if (pagamento.lancamento_id) {
+        if (pagamento.conta_id) {
+          await client.query(
+            `UPDATE conta SET saldo_atual = saldo_atual + $1, atualizado_em = NOW() WHERE id = $2`,
+            [pagamento.valor_pago, pagamento.conta_id]
+          );
+        }
+        await client.query(`DELETE FROM lancamento WHERE id = $1`, [pagamento.lancamento_id]);
+      }
+
+      // Remove registro de pagamento da fatura
+      await client.query(`DELETE FROM fatura_paga WHERE id = $1`, [pagamento.id]);
+
+      return {
+        success: true,
+        message: 'Pagamento da fatura estornado com sucesso. A fatura voltou a ficar em aberto.',
+      };
+    });
   }
 }
 

@@ -324,7 +324,7 @@ export const ContasPage: React.FC = () => {
               onChange={(e) => setContaInstId(e.target.value)}
               className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {instituicoes.map((inst) => (
+              {instituicoes.filter(i => i.ativo !== false).map((inst) => (
                 <option key={inst.id} value={inst.id}>{inst.nome} ({inst.tipo})</option>
               ))}
             </select>

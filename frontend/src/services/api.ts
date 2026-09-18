@@ -84,6 +84,10 @@ export const api = {
   updateCartao: (id: string, body: any) => request<import('../types/index.js').CartaoCredito>(`/cartoes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteCartao: (id: string) => request<any>(`/cartoes/${id}`, { method: 'DELETE' }),
   getCartaoFatura: (id: string, anoMes?: string) => request<import('../types/index.js').FaturaDetalhe>(`/cartoes/${id}/fatura${anoMes ? `?anoMes=${anoMes}` : ''}`),
+  pagarFaturaCartao: (id: string, body: { anoMes: string; dataPagamento?: string; contaId?: string | null }) =>
+    request<any>(`/cartoes/${id}/fatura/pagar`, { method: 'POST', body: JSON.stringify(body) }),
+  estornarFaturaCartao: (id: string, anoMes: string) =>
+    request<any>(`/cartoes/${id}/faturas/${anoMes}/pagar`, { method: 'DELETE' }),
 
   // Compras Parceladas
   getParcelamentos: () => request<import('../types/index.js').CompraParcelada[]>('/parcelamentos'),

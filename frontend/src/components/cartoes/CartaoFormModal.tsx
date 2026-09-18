@@ -26,6 +26,8 @@ export const CartaoFormModal: React.FC<CartaoFormModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const instAtivas = instituicoes.filter((i) => i.ativo !== false);
+
   useEffect(() => {
     if (initialData) {
       setApelido(initialData.apelido);
@@ -35,7 +37,7 @@ export const CartaoFormModal: React.FC<CartaoFormModalProps> = ({
       setDiaVencimento(String(initialData.dia_vencimento));
     } else {
       setApelido('');
-      setInstituicaoId(instituicoes[0]?.id || '');
+      setInstituicaoId(instAtivas[0]?.id || '');
       setLimite('');
       setDiaFechamento('15');
       setDiaVencimento('25');
@@ -115,9 +117,13 @@ export const CartaoFormModal: React.FC<CartaoFormModalProps> = ({
             onChange={(e) => setInstituicaoId(e.target.value)}
             className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            {instituicoes.map((inst) => (
-              <option key={inst.id} value={inst.id}>{inst.nome}</option>
-            ))}
+            {instAtivas.length === 0 ? (
+              <option value="" disabled>Nenhuma instituição ativa cadastrada</option>
+            ) : (
+              instAtivas.map((inst) => (
+                <option key={inst.id} value={inst.id}>{inst.nome}</option>
+              ))
+            )}
           </select>
         </div>
 

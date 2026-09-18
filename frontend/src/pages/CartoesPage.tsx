@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { CreditCard, Plus, ChevronLeft, ChevronRight, ShoppingBag, Trash2 } from 'lucide-react';
+import { CreditCard, Plus, ChevronLeft, ChevronRight, ShoppingBag, Trash2, CheckCircle2, RotateCcw } from 'lucide-react';
 import { api } from '../services/api.js';
-import { CartaoCredito, Instituicao, FaturaDetalhe, CompraParcelada, Categoria } from '../types/index.js';
+import { CartaoCredito, Instituicao, FaturaDetalhe, CompraParcelada, Categoria, Conta } from '../types/index.js';
 import { CartaoCard } from '../components/cartoes/CartaoCard.js';
 import { CartaoFormModal } from '../components/cartoes/CartaoFormModal.js';
+import { ModalPagarFatura } from '../components/cartoes/ModalPagarFatura.js';
 import { Modal } from '../components/common/Modal.js';
 import { PrivacyValue } from '../components/common/PrivacyValue.js';
 import { DateInput } from '../components/common/DateInput.js';
@@ -11,6 +12,7 @@ import { DateInput } from '../components/common/DateInput.js';
 export const CartoesPage: React.FC = () => {
   const [cartoes, setCartoes] = useState<CartaoCredito[]>([]);
   const [instituicoes, setInstituicoes] = useState<Instituicao[]>([]);
+  const [contas, setContas] = useState<Conta[]>([]);
   const [parcelamentos, setParcelamentos] = useState<CompraParcelada[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
 
@@ -20,6 +22,7 @@ export const CartoesPage: React.FC = () => {
 
   // Modal Fatura
   const [isFaturaModalOpen, setIsFaturaModalOpen] = useState(false);
+  const [isPagarFaturaOpen, setIsPagarFaturaOpen] = useState(false);
   const [faturaCard, setFaturaCard] = useState<CartaoCredito | null>(null);
   const [faturaMes, setFaturaMes] = useState(new Date().toISOString().substring(0, 7));
   const [faturaDetalhe, setFaturaDetalhe] = useState<FaturaDetalhe | null>(null);
@@ -36,16 +39,18 @@ export const CartoesPage: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [cartoesData, instData, parcData, catData] = await Promise.all([
+      const [cartoesData, instData, parcData, catData, contasData] = await Promise.all([
         api.getCartoes(),
         api.getInstituicoes(),
         api.getParcelamentos(),
         api.getCategorias(),
+        api.getContas(),
       ]);
       setCartoes(cartoesData);
       setInstituicoes(instData);
       setParcelamentos(parcData);
       setCategorias(catData.flat);
+      setContas(contasData);
       if (cartoesData.length > 0 && !parcCartaoId) {
         setParcCartaoId(cartoesData[0].id);
       }
@@ -98,6 +103,17 @@ export const CartoesPage: React.FC = () => {
     setFaturaMes(novoAnoMes);
     if (faturaCard) {
       carregarFatura(faturaCard.id, novoAnoMes);
+    }
+  };
+
+  const handleEstornarFatura = async (cardId: string, mes: string) => {
+    if (!window.confirm(`Deseja realmente reabrir a fatura de ${mes}? Caso tenha sido debitada de uma conta bancária, o saldo será restaurado.`)) return;
+    try {
+      await api.estornarFaturaCartao(cardId, mes);
+      await carregarFatura(cardId, mes);
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao reabrir fatura.');
     }
   };
 
@@ -293,18 +309,58 @@ export const CartoesPage: React.FC = () => {
           </div>
 
           {/* Resumo da Fatura */}
-          <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl flex items-center justify-between">
+          <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <span className="text-xs text-slate-400 uppercase tracking-wider block">Total da Fatura</span>
-              <div className="text-2xl font-black text-rose-400">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 uppercase tracking-wider block">Total da Fatura</span>
+                {faturaDetalhe?.paga && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 rounded-full">
+                    <CheckCircle2 size={13} />
+                    <span>Fatura Paga</span>
+                  </span>
+                )}
+              </div>
+              <div className={`text-2xl font-black mt-1 ${faturaDetalhe?.paga ? 'text-emerald-400' : 'text-rose-400'}`}>
                 <PrivacyValue value={faturaDetalhe?.totalFatura ?? 0} />
               </div>
+              {faturaDetalhe?.paga && faturaDetalhe.pagamento && (
+                <span className="text-[11px] text-slate-400 block mt-1">
+                  Liquidada em {new Date(faturaDetalhe.pagamento.data_pagamento).toLocaleDateString('pt-BR')}
+                  {faturaDetalhe.pagamento.conta_apelido ? ` via conta "${faturaDetalhe.pagamento.conta_apelido}"` : ' (marcada como paga)'}
+                </span>
+              )}
             </div>
-            <div className="text-right text-xs text-slate-400">
-              <span>{faturaDetalhe?.quantidadeItens ?? 0} lançamentos</span>
-              <span className="block mt-0.5 text-slate-500">
-                Vence dia {faturaCard?.dia_vencimento}
-              </span>
+
+            <div className="flex flex-col sm:items-end justify-between gap-2.5">
+              <div className="text-left sm:text-right text-xs text-slate-400">
+                <span>{faturaDetalhe?.quantidadeItens ?? 0} lançamentos</span>
+                <span className="block mt-0.5 text-slate-500">
+                  Vence dia {faturaCard?.dia_vencimento}
+                </span>
+              </div>
+
+              {faturaDetalhe?.paga ? (
+                <button
+                  type="button"
+                  onClick={() => faturaCard && handleEstornarFatura(faturaCard.id, faturaMes)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition"
+                  title="Reabrir fatura e estornar pagamento"
+                >
+                  <RotateCcw size={14} />
+                  <span>Reabrir Fatura</span>
+                </button>
+              ) : (
+                faturaDetalhe && faturaDetalhe.totalFatura > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsPagarFaturaOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/30 transition active:scale-[0.98]"
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>Pagar Fatura</span>
+                  </button>
+                )
+              )}
             </div>
           </div>
 
@@ -454,6 +510,20 @@ export const CartoesPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Modal Pagar Fatura */}
+      {faturaCard && faturaDetalhe && (
+        <ModalPagarFatura
+          isOpen={isPagarFaturaOpen}
+          onClose={() => setIsPagarFaturaOpen(false)}
+          onSuccess={async () => {
+            await carregarFatura(faturaCard.id, faturaMes);
+            await loadData();
+          }}
+          faturaDetalhe={faturaDetalhe}
+          contas={contas}
+        />
+      )}
     </div>
   );
 };

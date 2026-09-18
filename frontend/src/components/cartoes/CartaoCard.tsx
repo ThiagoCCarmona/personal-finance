@@ -58,8 +58,15 @@ export const CartaoCard: React.FC<CartaoCardProps> = ({
       {/* Fatura Atual e Limite Disponível */}
       <div className="grid grid-cols-2 gap-4 py-2 border-y border-slate-800/80">
         <div>
-          <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Fatura Atual</span>
-          <div className="text-xl font-black text-rose-400 mt-0.5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Fatura Atual</span>
+            {cartao.fatura_atual_paga && (
+              <span className="px-1.5 py-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 rounded-md">
+                Paga
+              </span>
+            )}
+          </div>
+          <div className={`text-xl font-black mt-0.5 ${cartao.fatura_atual_paga ? 'text-emerald-400' : 'text-rose-400'}`}>
             <PrivacyValue value={cartao.fatura_atual ?? 0} />
           </div>
         </div>

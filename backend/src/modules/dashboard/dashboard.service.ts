@@ -192,7 +192,15 @@ export class DashboardService {
     const faturas = await Promise.all(
       cartoes.map(async (cartao) => {
         const { rows: faturaRows } = await query(
-          `SELECT COALESCE(SUM(valor), 0) as total_fatura, COUNT(id) as total_itens
+          `SELECT 
+            COALESCE(SUM(valor), 0) as total_fatura, 
+            COUNT(id) as total_itens,
+            EXISTS (
+              SELECT 1 FROM fatura_paga fp 
+              WHERE fp.cartao_id = $1 
+                AND fp.usuario_id = $2 
+                AND fp.ano_mes = $3
+            ) as fatura_paga
            FROM lancamento
            WHERE cartao_id = $1 
              AND usuario_id = $2
@@ -203,6 +211,7 @@ export class DashboardService {
 
         const totalFatura = parseFloat(faturaRows[0]?.total_fatura || '0');
         const totalItens = parseInt(faturaRows[0]?.total_itens || '0', 10);
+        const faturaPaga = Boolean(faturaRows[0]?.fatura_paga);
 
         return {
           cartao_id: cartao.id,
@@ -213,6 +222,7 @@ export class DashboardService {
           data_vencimento: `${targetAnoMes}-${String(cartao.dia_vencimento).padStart(2, '0')}`,
           total_fatura: totalFatura,
           total_itens: totalItens,
+          paga: faturaPaga,
         };
       })
     );
@@ -279,7 +289,9 @@ export class DashboardService {
     const totalComprometimentoFuturo = parseFloat(comprometimentoRows[0]?.total_comprometido || '0');
     const parcelasFuturasCount = parseInt(comprometimentoRows[0]?.total_parcelas_futuras || '0', 10);
 
-    const totalFaturasMes = faturas.reduce((acc, f) => acc + f.total_fatura, 0);
+    const totalFaturasMes = faturas
+      .filter(f => !f.paga)
+      .reduce((acc, f) => acc + f.total_fatura, 0);
     const totalRecorrenciasNaoLancadas = recorrenciasStatus
       .filter(r => !r.ja_lancado && r.tipo === 'despesa')
       .reduce((acc, r) => acc + r.valor, 0);

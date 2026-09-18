@@ -56,6 +56,7 @@ export interface CartaoCredito {
   limite_utilizado?: number;
   limite_disponivel?: number;
   fatura_atual?: number;
+  fatura_atual_paga?: boolean;
   percentual_utilizado?: number;
 }
 
@@ -64,6 +65,15 @@ export interface FaturaDetalhe {
   anoMes: string;
   totalFatura: number;
   quantidadeItens: number;
+  paga?: boolean;
+  pagamento?: {
+    id: string;
+    valor_pago: number;
+    data_pagamento: string;
+    conta_id?: string | null;
+    conta_apelido?: string | null;
+    lancamento_id?: string | null;
+  } | null;
   itens: Lancamento[];
 }
 
