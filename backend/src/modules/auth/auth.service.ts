@@ -11,7 +11,7 @@ export class AuthService {
     const hasUser = parseInt(rows[0].count, 10) > 0;
     return {
       setupRequired: !hasUser,
-      allowRegistration: true,
+      allowRegistration: false, // Apenas o admin cria cadastros!
     };
   }
 
@@ -26,9 +26,9 @@ export class AuthService {
 
     return withTransaction(async (client) => {
       const { rows } = await client.query(
-        `INSERT INTO usuario (login, nome, senha_hash, role, inactivity_timeout_minutes)
-         VALUES ($1, $2, $3, 'admin', $4)
-         RETURNING id, login, nome, role, inactivity_timeout_minutes`,
+        `INSERT INTO usuario (login, nome, senha_hash, role, inactivity_timeout_minutes, precisa_trocar_senha, ativo)
+         VALUES ($1, $2, $3, 'admin', $4, FALSE, TRUE)
+         RETURNING id, login, nome, role, inactivity_timeout_minutes, precisa_trocar_senha`,
         [input.login.trim(), input.nome?.trim() || 'Administrador', senhaHash, input.inactivityTimeoutMinutes || 720]
       );
 
@@ -41,17 +41,27 @@ export class AuthService {
         console.error('Aviso: falha ao rodar seed automático:', err);
       }
 
-      // Cria a primeira sessão para login imediato
       const sessionToken = await this.createSession(user.id, user.inactivity_timeout_minutes);
 
       return {
-        user: { id: user.id, login: user.login, nome: user.nome, role: user.role },
+        user: { 
+          id: user.id, 
+          login: user.login, 
+          nome: user.nome, 
+          role: user.role,
+          precisa_trocar_senha: false
+        },
         sessionToken,
       };
     });
   }
 
-  async register(input: RegisterInput) {
+  async register(input: RegisterInput, operadorRole?: string) {
+    // Apenas o Administrador pode criar usuários!
+    if (operadorRole !== 'admin') {
+      throw new Error('Apenas o Administrador pode cadastrar novos usuários no sistema.');
+    }
+
     const loginClean = input.login.trim();
 
     const { rows: existing } = await query(
@@ -67,16 +77,11 @@ export class AuthService {
     const senhaHash = await bcrypt.hash(input.senha, salt);
 
     return withTransaction(async (client) => {
-      // Verifica se é o primeiro usuário do sistema (caso seja, ganha role admin)
-      const { rows: countRows } = await client.query('SELECT COUNT(*) as count FROM usuario');
-      const isFirst = parseInt(countRows[0].count, 10) === 0;
-      const role = isFirst ? 'admin' : 'user';
-
       const { rows } = await client.query(
-        `INSERT INTO usuario (login, nome, senha_hash, role, inactivity_timeout_minutes)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, login, nome, role, inactivity_timeout_minutes`,
-        [loginClean, input.nome?.trim() || loginClean, senhaHash, role, input.inactivityTimeoutMinutes || 720]
+        `INSERT INTO usuario (login, nome, senha_hash, role, inactivity_timeout_minutes, precisa_trocar_senha, ativo)
+         VALUES ($1, $2, $3, 'user', $4, TRUE, TRUE)
+         RETURNING id, login, nome, role, inactivity_timeout_minutes, precisa_trocar_senha`,
+        [loginClean, input.nome?.trim() || loginClean, senhaHash, input.inactivityTimeoutMinutes || 720]
       );
 
       const user = rows[0];
@@ -84,19 +89,25 @@ export class AuthService {
       // Gera automaticamente a árvore padrão de categorias exclusiva deste novo usuário
       await seedUserDefaultCategories(user.id, client);
 
-      // Cria sessão para autenticação imediata
-      const sessionToken = await this.createSession(user.id, user.inactivity_timeout_minutes);
-
       return {
-        user: { id: user.id, login: user.login, nome: user.nome, role: user.role },
-        sessionToken,
+        user: { 
+          id: user.id, 
+          login: user.login, 
+          nome: user.nome, 
+          role: user.role,
+          precisa_trocar_senha: true
+        }
       };
     });
   }
 
   async login(input: LoginInput) {
     const { rows } = await query(
-      'SELECT id, login, nome, role, senha_hash, inactivity_timeout_minutes FROM usuario WHERE LOWER(login) = LOWER($1)',
+      `SELECT id, login, nome, role, senha_hash, inactivity_timeout_minutes, 
+              COALESCE(precisa_trocar_senha, FALSE) as precisa_trocar_senha,
+              COALESCE(ativo, TRUE) as ativo 
+       FROM usuario 
+       WHERE LOWER(login) = LOWER($1)`,
       [input.login.trim()]
     );
 
@@ -105,6 +116,11 @@ export class AuthService {
     }
 
     const user = rows[0];
+
+    if (!user.ativo) {
+      throw new Error('Este usuário está inativo. Entre em contato com o administrador.');
+    }
+
     const passwordMatch = await bcrypt.compare(input.senha, user.senha_hash);
     if (!passwordMatch) {
       throw new Error('Credenciais inválidas.');
@@ -118,9 +134,52 @@ export class AuthService {
         login: user.login,
         nome: user.nome,
         role: user.role,
+        precisa_trocar_senha: Boolean(user.precisa_trocar_senha),
       },
       sessionToken,
     };
+  }
+
+  async trocarSenhaPrimeiroAcesso(usuarioId: string, novaSenha: string) {
+    const salt = await bcrypt.genSalt(12);
+    const senhaHash = await bcrypt.hash(novaSenha, salt);
+
+    await query(
+      `UPDATE usuario 
+       SET senha_hash = $1, precisa_trocar_senha = FALSE 
+       WHERE id = $2`,
+      [senhaHash, usuarioId]
+    );
+
+    const { rows } = await query(
+      `SELECT id, login, nome, role FROM usuario WHERE id = $1`,
+      [usuarioId]
+    );
+
+    return {
+      success: true,
+      user: {
+        ...rows[0],
+        precisa_trocar_senha: false,
+      }
+    };
+  }
+
+  async atualizarPerfil(usuarioId: string, nome: string) {
+    const nomeClean = nome.trim();
+    if (!nomeClean || nomeClean.length < 2) {
+      throw new Error('Informe um nome válido com pelo menos 2 caracteres.');
+    }
+
+    const { rows } = await query(
+      `UPDATE usuario 
+       SET nome = $1 
+       WHERE id = $2 
+       RETURNING id, login, nome, role, precisa_trocar_senha`,
+      [nomeClean, usuarioId]
+    );
+
+    return rows[0];
   }
 
   async createSession(usuarioId: string, timeoutMinutes: number): Promise<string> {
@@ -144,7 +203,10 @@ export class AuthService {
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
 
     const { rows } = await query(
-      `SELECT s.id as sessao_id, s.expira_em, s.ultimo_acesso, u.id as usuario_id, u.login, u.nome, u.role, u.inactivity_timeout_minutes
+      `SELECT s.id as sessao_id, s.expira_em, s.ultimo_acesso, 
+              u.id as usuario_id, u.login, u.nome, u.role, u.inactivity_timeout_minutes,
+              COALESCE(u.precisa_trocar_senha, FALSE) as precisa_trocar_senha,
+              COALESCE(u.ativo, TRUE) as ativo
        FROM sessao s
        JOIN usuario u ON u.id = s.usuario_id
        WHERE s.token_hash = $1`,
@@ -154,15 +216,15 @@ export class AuthService {
     if (rows.length === 0) return null;
 
     const sessao = rows[0];
+    if (!sessao.ativo) return null;
+
     const agora = new Date();
 
-    // Verifica se expirou por inatividade
     if (new Date(sessao.expira_em) < agora) {
       await this.destroySession(rawToken);
       return null;
     }
 
-    // Atualiza o tempo de inatividade (rolling timeout)
     const novoExpiraEm = new Date(agora.getTime() + sessao.inactivity_timeout_minutes * 60 * 1000);
     await query(
       'UPDATE sessao SET ultimo_acesso = NOW(), expira_em = $1 WHERE id = $2',
@@ -174,6 +236,7 @@ export class AuthService {
       login: sessao.login,
       nome: sessao.nome,
       role: sessao.role,
+      precisa_trocar_senha: Boolean(sessao.precisa_trocar_senha),
       inactivityTimeoutMinutes: sessao.inactivity_timeout_minutes,
     };
   }

@@ -6,6 +6,7 @@ import { CartaoCard } from '../components/cartoes/CartaoCard.js';
 import { CartaoFormModal } from '../components/cartoes/CartaoFormModal.js';
 import { Modal } from '../components/common/Modal.js';
 import { PrivacyValue } from '../components/common/PrivacyValue.js';
+import { DateInput } from '../components/common/DateInput.js';
 
 export const CartoesPage: React.FC = () => {
   const [cartoes, setCartoes] = useState<CartaoCredito[]>([]);
@@ -410,13 +411,11 @@ export const CartoesPage: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Data da Compra *</label>
-              <input
-                type="date"
+              <DateInput
+                label="Data da Compra"
                 required
                 value={parcDataCompra}
-                onChange={(e) => setParcDataCompra(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={data => setParcDataCompra(data)}
               />
             </div>
           </div>

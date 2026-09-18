@@ -28,6 +28,7 @@ import { relatoriosRoutes } from './modules/relatorios/relatorios.routes.js';
 import { sistemaRoutes } from './modules/sistema/sistema.routes.js';
 import { moedasRoutes } from './modules/moedas/moedas.routes.js';
 import { listaDesejoRoutes } from './modules/lista_desejo/lista_desejo.routes.js';
+import { usuariosRoutes } from './modules/usuarios/usuarios.routes.js';
 import { PtaxClient } from './modules/cambio/ptax-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -90,6 +91,7 @@ export async function buildApp() {
   await app.register(sistemaRoutes, { prefix: '/api/sistema' });
   await app.register(moedasRoutes, { prefix: '/api/moedas' });
   await app.register(listaDesejoRoutes, { prefix: '/api/lista-desejo' });
+  await app.register(usuariosRoutes, { prefix: '/api/usuarios' });
 
   // Servir frontend compilado estaticamente em produção se existir
   const candidatePaths = [

@@ -19,6 +19,16 @@ export const loginSchema = z.object({
   senha: z.string().min(1, 'Informe a senha'),
 });
 
+export const trocarSenhaPrimeiroAcessoSchema = z.object({
+  novaSenha: z.string().min(6, 'A nova senha deve ter no mínimo 6 caracteres').max(100),
+});
+
+export const atualizarPerfilSchema = z.object({
+  nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(100),
+});
+
 export type SetupInput = z.infer<typeof setupSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type TrocarSenhaPrimeiroAcessoInput = z.infer<typeof trocarSenhaPrimeiroAcessoSchema>;
+export type AtualizarPerfilInput = z.infer<typeof atualizarPerfilSchema>;

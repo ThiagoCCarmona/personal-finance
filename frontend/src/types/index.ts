@@ -3,6 +3,8 @@ export interface User {
   login: string;
   nome?: string;
   role?: 'admin' | 'user';
+  precisa_trocar_senha?: boolean;
+  ativo?: boolean;
 }
 
 export interface AuthStatus {
@@ -159,6 +161,10 @@ export interface DashboardResumo {
   despesasMesAnterior: number;
   receitasMesAnterior: number;
   variacaoDespesasPercentual: number;
+  saldoProjetadoMesSeguinte?: number;
+  totalReceitasRecorrentes?: number;
+  totalFaturasMes?: number;
+  totalDespesasRecorrentesConta?: number;
 }
 
 export interface ContasAPagarResumo {
@@ -422,9 +428,15 @@ export interface ResultadoSimulacaoGasto {
   valor_original: number;
   cotacao_utilizada: number;
   valor_total_brl: number;
+  valor_a_vista_brl?: number;
   forma_pagamento: 'a_vista' | 'cartao_parcelado';
   num_parcelas: number;
   valor_parcela_brl: number;
+  com_juros?: boolean;
+  taxa_juros_mensal?: number;
+  tipo_juros?: 'price' | 'simples';
+  total_juros_brl?: number;
+  percentual_acrescimo_juros?: number;
   impacto_a_vista?: {
     conta_nome: string;
     saldo_atual: number;
@@ -437,6 +449,28 @@ export interface ResultadoSimulacaoGasto {
     limite_disponivel_projetado: number;
     projecoes_faturas: ProjecaoFaturaMes[];
   };
+  projecao_mes_seguinte?: {
+    saldo_atual: number;
+    receitas_recorrentes: number;
+    faturas_e_despesas_fixas: number;
+    saldo_projetado_sem_compra: number;
+    saldo_projetado_com_compra: number;
+    impacto_compra: number;
+  };
+}
+
+export interface UsuarioAdmin {
+  id: string;
+  login: string;
+  nome: string;
+  role: 'admin' | 'usuario';
+  ativo: boolean;
+  precisa_trocar_senha: boolean;
+  criado_em: string;
+  atualizado_em?: string;
+  ultimo_acesso?: string | null;
+  total_lancamentos?: number;
+  total_contas?: number;
 }
 
 export interface MetricasSistema {

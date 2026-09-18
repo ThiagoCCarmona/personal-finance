@@ -3,6 +3,7 @@ import { TrendingUp, Plus, Trash2, PieChart as PieIcon, Building2, Clock, X, Edi
 import { api } from '../services/api.js';
 import { PosicaoAtivo, ResumoCarteira, TipoInvestimento } from '../types/index.js';
 import { PrivacyValue } from '../components/common/PrivacyValue.js';
+import { DateInput } from '../components/common/DateInput.js';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 
 export const InvestimentosPage: React.FC = () => {
@@ -737,13 +738,11 @@ export const InvestimentosPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Data</label>
-                  <input
-                    type="date"
+                  <DateInput
+                    label="Data"
                     required
                     value={formMov.data}
-                    onChange={e => setFormMov({ ...formMov, data: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none"
+                    onChange={data => setFormMov({ ...formMov, data })}
                   />
                 </div>
                 <div>

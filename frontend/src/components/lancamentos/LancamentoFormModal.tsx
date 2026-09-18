@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal.js';
+import { DateInput } from '../common/DateInput.js';
 import { api } from '../../services/api.js';
 import { Conta, CartaoCredito, Categoria, Lancamento } from '../../types/index.js';
 
@@ -236,15 +237,11 @@ export const LancamentoFormModal: React.FC<LancamentoFormModalProps> = ({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">
-              Data da Compra *
-            </label>
-            <input
-              type="date"
+            <DateInput
+              label="Data da Compra"
               required
               value={dataCompra}
-              onChange={(e) => setDataCompra(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(novaData) => setDataCompra(novaData)}
             />
           </div>
         </div>

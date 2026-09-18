@@ -20,7 +20,8 @@ export class SimuladoresController {
     const { SimularGastoSchema } = await import('./simulador_gastos.schema.js');
     const { simuladorGastosService } = await import('./simulador_gastos.service.js');
     const dados = SimularGastoSchema.parse(request.body);
-    const resultado = await simuladorGastosService.simular(dados);
+    const userId = (request as any).user?.id;
+    const resultado = await simuladorGastosService.simular(dados, userId);
     return reply.send({ data: resultado });
   }
 }

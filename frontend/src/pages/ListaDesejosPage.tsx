@@ -6,6 +6,7 @@ import {
 import { api } from '../services/api.js';
 import { ItemDesejo, Categoria, Conta, CartaoCredito } from '../types/index.js';
 import { PrivacyValue } from '../components/common/PrivacyValue.js';
+import { DateInput } from '../components/common/DateInput.js';
 
 export const ListaDesejosPage: React.FC = () => {
   const [itens, setItens] = useState<ItemDesejo[]>([]);
@@ -720,12 +721,10 @@ export const ListaDesejosPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Data Alvo de Compra</label>
-                  <input
-                    type="date"
-                    value={formItem.data_alvo}
-                    onChange={e => setFormItem({ ...formItem, data_alvo: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none"
+                  <DateInput
+                    label="Data Alvo de Compra"
+                    value={formItem.data_alvo || ''}
+                    onChange={data => setFormItem({ ...formItem, data_alvo: data })}
                   />
                 </div>
                 <div>
@@ -1006,12 +1005,10 @@ export const ListaDesejosPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Data da Consulta</label>
-                  <input
-                    type="date"
+                  <DateInput
+                    label="Data da Consulta"
                     value={novaDataHistorico}
-                    onChange={e => setNovaDataHistorico(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    onChange={data => setNovaDataHistorico(data)}
                   />
                 </div>
               </div>

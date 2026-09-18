@@ -10,7 +10,10 @@ export const SimularGastoSchema = z.object({
   cartao_id: z.preprocess(val => (val === '' || val === null ? undefined : val), z.string().uuid().optional()),
   categoria_id: z.preprocess(val => (val === '' || val === null ? undefined : val), z.string().uuid().optional()),
   num_parcelas: z.preprocess(val => (val === '' || val === null || val === undefined ? 1 : Number(val)), z.number().int().min(1).max(36).default(1)),
-  data_prevista: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+  data_prevista: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  com_juros: z.preprocess(val => val === true || val === 'true', z.boolean().default(false)),
+  taxa_juros_mensal: z.preprocess(val => (val === '' || val === null || val === undefined ? 0 : Number(val)), z.number().min(0).max(100).default(0)),
+  tipo_juros: z.preprocess(val => (val === '' || val === null || val === undefined ? 'price' : val), z.enum(['price', 'simples']).default('price'))
 });
 
 export type SimularGastoInput = z.infer<typeof SimularGastoSchema>;

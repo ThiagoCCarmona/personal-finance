@@ -11,6 +11,8 @@ interface AuthContextType {
   setup: (login: string, pass: string, nome?: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  updateUserLocal: (partial: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -31,6 +33,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setLoading(false);
     }
+  };
+
+  const refreshUser = async () => {
+    try {
+      const res = await api.getStatus();
+      if (res.user) {
+        setUser(res.user);
+      }
+    } catch (err) {
+      console.error('Falha ao atualizar dados do usuário:', err);
+    }
+  };
+
+  const updateUserLocal = (partial: Partial<User>) => {
+    setUser(prev => prev ? { ...prev, ...partial } : null);
   };
 
   useEffect(() => {
@@ -66,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, setupRequired, login, register, setup, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, loading, setupRequired, login, register, setup, logout, checkAuth, refreshUser, updateUserLocal }}>
       {children}
     </AuthContext.Provider>
   );

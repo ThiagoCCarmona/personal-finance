@@ -6,6 +6,7 @@ import {
 import { api } from '../services/api';
 import { Pessoa, Divida, ResumoDividas, Conta, ChavePix, DespesaCompartilhada } from '../types';
 import { PrivacyValue } from '../components/common/PrivacyValue';
+import { DateInput } from '../components/common/DateInput';
 
 export const SocialPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -844,21 +845,17 @@ export const SocialPage: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Data do Empréstimo</label>
-                  <input
-                    type="date"
+                  <DateInput
+                    label="Data do Empréstimo"
                     value={formEmprestimo.data}
-                    onChange={e => setFormEmprestimo({ ...formEmprestimo, data: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                    onChange={data => setFormEmprestimo({ ...formEmprestimo, data })}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Previsão de Pagamento</label>
-                  <input
-                    type="date"
+                  <DateInput
+                    label="Previsão de Pagamento"
                     value={formEmprestimo.vencimento}
-                    onChange={e => setFormEmprestimo({ ...formEmprestimo, vencimento: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                    onChange={vencimento => setFormEmprestimo({ ...formEmprestimo, vencimento })}
                   />
                 </div>
               </div>
@@ -1085,12 +1082,10 @@ export const SocialPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Data</label>
-                  <input
-                    type="date"
+                  <DateInput
+                    label="Data"
                     value={formBaixa.data}
-                    onChange={e => setFormBaixa({ ...formBaixa, data: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                    onChange={data => setFormBaixa({ ...formBaixa, data })}
                   />
                 </div>
               </div>

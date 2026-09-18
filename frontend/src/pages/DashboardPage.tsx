@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   TrendingDown, TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, 
-  ChevronLeft, ChevronRight, CreditCard, Clock, CheckCircle2, Play 
+  ChevronLeft, ChevronRight, CreditCard, Clock, CheckCircle2, Play, Sparkles 
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, 
@@ -98,6 +98,35 @@ export const DashboardPage: React.FC = () => {
           >
             <ChevronRight size={18} />
           </button>
+        </div>
+      </div>
+
+      {/* Banner Projeção Saldo Mês Seguinte */}
+      <div className="p-5 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30 flex-shrink-0">
+            <Sparkles size={24} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
+                Saldo Projetado no Mês Que Vem
+              </h3>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
+                Previsão com Recorrências
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Saldo em conta (<PrivacyValue value={resumo?.saldoConsolidado ?? 0} />) + receitas fixas (<PrivacyValue value={resumo?.totalReceitasRecorrentes ?? 0} />) - faturas e fixas previstas (<PrivacyValue value={(resumo?.totalFaturasMes ?? 0) + (resumo?.totalDespesasRecorrentesConta ?? 0)} />)
+            </p>
+          </div>
+        </div>
+
+        <div className="text-left md:text-right md:border-l md:border-slate-800 md:pl-6 flex-shrink-0">
+          <span className="text-xs font-semibold text-slate-400 block">Estimativa no Próximo Mês</span>
+          <div className={`text-2xl font-black ${(resumo?.saldoProjetadoMesSeguinte ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <PrivacyValue value={resumo?.saldoProjetadoMesSeguinte ?? 0} />
+          </div>
         </div>
       </div>
 

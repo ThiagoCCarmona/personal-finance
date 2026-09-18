@@ -53,6 +53,43 @@ export class DashboardService {
     const receitasAnterior = parseFloat(rowsAnterior[0]?.total_receitas || '0');
     const saldoConsolidado = parseFloat(rowsSaldo[0]?.saldo_consolidado || '0');
 
+    // Receitas recorrentes fixas ativas
+    const { rows: rowsRecReceitas } = await query(
+      `SELECT COALESCE(SUM(valor), 0) as total_receitas_recorrentes
+       FROM recorrencia
+       WHERE usuario_id = $1 AND ativo = TRUE AND tipo = 'receita'`,
+      [userId]
+    );
+
+    // Faturas de cartões de crédito deste mês
+    const { rows: rowsFaturas } = await query(
+      `SELECT COALESCE(SUM(l.valor), 0) as total_faturas
+       FROM lancamento l
+       WHERE l.usuario_id = $1
+         AND l.tipo = 'despesa'
+         AND l.cartao_id IS NOT NULL
+         AND TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $2`,
+      [userId, targetAnoMes]
+    );
+
+    // Despesas recorrentes fixas debitadas em conta (não cartão)
+    const { rows: rowsRecDespesas } = await query(
+      `SELECT COALESCE(SUM(valor), 0) as total_despesas_recorrentes_conta
+       FROM recorrencia
+       WHERE usuario_id = $1 
+         AND ativo = TRUE 
+         AND tipo = 'despesa'
+         AND (cartao_id IS NULL OR forma_pagamento != 'credito')`,
+      [userId]
+    );
+
+    const totalReceitasRecorrentes = parseFloat(rowsRecReceitas[0]?.total_receitas_recorrentes || '0');
+    const totalFaturasMes = parseFloat(rowsFaturas[0]?.total_faturas || '0');
+    const totalDespesasRecorrentesConta = parseFloat(rowsRecDespesas[0]?.total_despesas_recorrentes_conta || '0');
+
+    // Exemplo do usuário: Saldo atual (1k) + Receita fixa recorrente (2k) - Fatura do mês (1.5k) = Saldo projetado no mês seguinte (1.5k)
+    const saldoProjetadoMesSeguinte = Math.round((saldoConsolidado + totalReceitasRecorrentes - totalFaturasMes - totalDespesasRecorrentesConta) * 100) / 100;
+
     let variacaoDespesas = 0;
     if (despesasAnterior > 0) {
       variacaoDespesas = ((despesasAtual - despesasAnterior) / despesasAnterior) * 100;
@@ -68,6 +105,10 @@ export class DashboardService {
       despesasMesAnterior: despesasAnterior,
       receitasMesAnterior: receitasAnterior,
       variacaoDespesasPercentual: parseFloat(variacaoDespesas.toFixed(1)),
+      saldoProjetadoMesSeguinte,
+      totalReceitasRecorrentes,
+      totalFaturasMes,
+      totalDespesasRecorrentesConta,
     };
   }
 

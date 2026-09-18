@@ -24,6 +24,7 @@ export interface NavItemConfig {
   icon: LucideIcon;
   categoria: string;
   visible?: boolean;
+  adminOnly?: boolean;
 }
 
 export const DEFAULT_NAV_ITEMS: NavItemConfig[] = [
@@ -52,7 +53,8 @@ export const DEFAULT_NAV_ITEMS: NavItemConfig[] = [
   // Cadastros & Sistema
   { to: '/contas', label: 'Contas & Bancos', icon: Landmark, categoria: 'Cadastros & Sistema', visible: true },
   { to: '/categorias', label: 'Categorias', icon: Tags, categoria: 'Cadastros & Sistema', visible: true },
-  { to: '/configuracoes', label: 'Backup & Sistema', icon: Settings, categoria: 'Cadastros & Sistema', visible: true },
+  { to: '/usuarios', label: 'Gestão de Usuários', icon: Users, categoria: 'Cadastros & Sistema', visible: true, adminOnly: true },
+  { to: '/configuracoes', label: 'Configurações & Perfil', icon: Settings, categoria: 'Cadastros & Sistema', visible: true },
 ];
 
 const STORAGE_KEY = 'finan_nav_custom_config_v2';
@@ -113,10 +115,13 @@ export function getAllNavItemsForConfig(): NavItemConfig[] {
   return DEFAULT_NAV_ITEMS.map(i => ({ ...i }));
 }
 
-export function getOrderedNavItems(onlyVisible = true): NavItemConfig[] {
+export function getOrderedNavItems(onlyVisible = true, isAdmin = true): NavItemConfig[] {
   const all = getAllNavItemsForConfig();
-  if (!onlyVisible) return all;
-  return all.filter(i => i.visible !== false);
+  return all.filter(i => {
+    if (onlyVisible && i.visible === false) return false;
+    if (i.adminOnly && !isAdmin) return false;
+    return true;
+  });
 }
 
 export function saveNavCustomConfig(items: NavItemConfig[]): void {

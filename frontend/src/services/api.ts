@@ -56,6 +56,8 @@ export const api = {
   register: (body: { login: string; senha: string; nome?: string }) => request<any>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body: { login: string; senha: string }) => request<any>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   logout: () => request<any>('/auth/logout', { method: 'POST' }),
+  trocarSenhaPrimeiroAcesso: (body: { nova_senha: string }) => request<any>('/auth/trocar-senha-primeiro-acesso', { method: 'POST', body: JSON.stringify(body) }),
+  atualizarPerfil: (body: { nome: string }) => request<any>('/auth/perfil', { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Instituições
   getInstituicoes: () => request<import('../types/index.js').Instituicao[]>('/instituicoes'),
@@ -222,6 +224,13 @@ export const api = {
   deleteItemDesejo: (id: string) => request<any>(`/lista-desejo/${id}`, { method: 'DELETE' }),
   comprarItemDesejo: (id: string, body?: any) => request<import('../types/index.js').ItemDesejo>(`/lista-desejo/${id}/comprar`, { method: 'POST', body: JSON.stringify(body || {}) }),
   adicionarPrecoItemDesejo: (id: string, body: { link_id?: string; link_url?: string; data?: string; preco: number; loja?: string; observacao?: string }) => request<import('../types/index.js').ItemDesejo>(`/lista-desejo/${id}/precos`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // Usuários (Gestão do Administrador)
+  getUsuarios: () => request<import('../types/index.js').UsuarioAdmin[]>('/usuarios'),
+  createUsuario: (body: { login: string; nome?: string; senha_inicial: string; role?: 'admin' | 'usuario' }) => request<import('../types/index.js').UsuarioAdmin>('/usuarios', { method: 'POST', body: JSON.stringify(body) }),
+  updateUsuario: (id: string, body: { nome?: string; role?: 'admin' | 'usuario'; ativo?: boolean }) => request<import('../types/index.js').UsuarioAdmin>(`/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  resetarSenhaUsuario: (id: string, body: { nova_senha_temporaria: string }) => request<any>(`/usuarios/${id}/reset-senha`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteUsuario: (id: string) => request<any>(`/usuarios/${id}`, { method: 'DELETE' }),
 };
 
 

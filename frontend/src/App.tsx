@@ -20,15 +20,17 @@ import { SimuladorGastosPage } from './pages/SimuladorGastosPage.js';
 import { RelatoriosPage } from './pages/RelatoriosPage.js';
 import { ConfiguracoesPage } from './pages/ConfiguracoesPage.js';
 import { ListaDesejosPage } from './pages/ListaDesejosPage.js';
+import { UsuariosPage } from './pages/UsuariosPage.js';
+import { ModalPrimeiroAcesso } from './components/common/ModalPrimeiroAcesso.js';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading, setupRequired } = useAuth();
+  const { user, loading, setupRequired, updateUserLocal, refreshUser } = useAuth();
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           <span className="text-xs">Carregando sistema...</span>
         </div>
       </div>
@@ -43,7 +45,18 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/login" replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <ModalPrimeiroAcesso
+        isOpen={Boolean(user.precisa_trocar_senha)}
+        onSuccess={() => {
+          updateUserLocal({ precisa_trocar_senha: false });
+          refreshUser();
+        }}
+      />
+    </>
+  );
 };
 
 export const App: React.FC = () => {
@@ -76,6 +89,7 @@ export const App: React.FC = () => {
               <Route path="simulador-gastos" element={<SimuladorGastosPage />} />
               <Route path="relatorios" element={<RelatoriosPage />} />
               <Route path="desejos" element={<ListaDesejosPage />} />
+              <Route path="usuarios" element={<UsuariosPage />} />
               <Route path="configuracoes" element={<ConfiguracoesPage />} />
               <Route path="contas" element={<ContasPage />} />
               <Route path="categorias" element={<CategoriasPage />} />

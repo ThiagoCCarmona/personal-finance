@@ -4,18 +4,22 @@ import { Sliders } from 'lucide-react';
 import { getOrderedNavItems, groupNavItemsByCategory, NavItemConfig } from './navConfig';
 import { MenuConfigModal } from './MenuConfigModal';
 import { InstallPwaButton } from '../common/InstallPwaButton';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const Sidebar: React.FC = () => {
-  const [items, setItems] = useState<NavItemConfig[]>(() => getOrderedNavItems());
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const [items, setItems] = useState<NavItemConfig[]>(() => getOrderedNavItems(true, isAdmin));
   const [isConfigOpen, setIsConfigOpen] = useState(false);
 
   useEffect(() => {
+    setItems(getOrderedNavItems(true, isAdmin));
     const handleUpdate = () => {
-      setItems(getOrderedNavItems());
+      setItems(getOrderedNavItems(true, isAdmin));
     };
     window.addEventListener('finan_nav_order_changed', handleUpdate);
     return () => window.removeEventListener('finan_nav_order_changed', handleUpdate);
-  }, []);
+  }, [isAdmin]);
 
   const groups = groupNavItemsByCategory(items);
 

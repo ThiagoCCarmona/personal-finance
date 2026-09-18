@@ -7,13 +7,13 @@ import {
   DollarSign, 
   PieChart as PieIcon, 
   BarChart3, 
-  Calendar,
-  Layers,
-  ArrowUpRight,
-  ArrowDownRight
+  Layers, 
+  ArrowUpRight, 
+  ArrowDownRight 
 } from 'lucide-react';
 import { api } from '../services/api.js';
 import { PrivacyValue } from '../components/common/PrivacyValue.js';
+import { DateInput } from '../components/common/DateInput.js';
 import { 
   ResponsiveContainer, 
   BarChart, 
@@ -198,27 +198,24 @@ export const RelatoriosPage: React.FC = () => {
 
           {/* Seletores de Data e Conta */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5 text-xs text-slate-300">
-              <Calendar size={14} className="text-slate-500" />
-              <span>De:</span>
-              <input
-                type="date"
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 text-xs text-slate-300">
+              <span className="font-semibold text-slate-400">De:</span>
+              <DateInput
                 value={dataInicio}
-                onChange={e => {
-                  setDataInicio(e.target.value);
+                onChange={val => {
+                  setDataInicio(val);
                   setPeriodoAtalho('custom');
                 }}
-                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-36"
               />
-              <span>Até:</span>
-              <input
-                type="date"
+              <span className="font-semibold text-slate-400">Até:</span>
+              <DateInput
                 value={dataFim}
-                onChange={e => {
-                  setDataFim(e.target.value);
+                onChange={val => {
+                  setDataFim(val);
                   setPeriodoAtalho('custom');
                 }}
-                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-36"
               />
             </div>
 

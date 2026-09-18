@@ -64,14 +64,14 @@ export async function runAdminDemoSeed() {
       adminUserId = existingAdmin[0].id;
       await client.query(
         `UPDATE usuario 
-         SET role = 'admin', nome = 'Administrador Demonstrativo', senha_hash = $1 
-         WHERE id = $2`,
-        [adminSenhaHash, adminUserId]
+         SET role = 'admin', nome = 'Administrador Demonstrativo', ativo = TRUE
+         WHERE id = $1`,
+        [adminUserId]
       );
     } else {
       const { rows: newAdmin } = await client.query(
-        `INSERT INTO usuario (login, nome, senha_hash, role, inactivity_timeout_minutes)
-         VALUES ('admin', 'Administrador Demonstrativo', $1, 'admin', 720)
+        `INSERT INTO usuario (login, nome, senha_hash, role, inactivity_timeout_minutes, precisa_trocar_senha, ativo)
+         VALUES ('admin', 'Administrador Demonstrativo', $1, 'admin', 720, TRUE, TRUE)
          RETURNING id`,
         [adminSenhaHash]
       );
