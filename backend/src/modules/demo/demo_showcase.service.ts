@@ -252,7 +252,7 @@ export class DemoShowcaseService {
       // 10. Lançamentos Históricos e Recentes nos últimos 45 dias
       const transacoes = [
         { desc: 'Salário Mensal', valor: 8500.00, tipo: 'receita', cat: catSalario, conta: contaItau[0].id, offset: -30, forma: 'transferencia' },
-        { desc: 'Consultoria Freelance', valor: 2000.00, tipo: 'receita', cat: catSalario, conta: contaNubank[0].id, offset: -20, forma: 'pix_credito' },
+        { desc: 'Consultoria Freelance', valor: 2000.00, tipo: 'receita', cat: catSalario, conta: contaNubank[0].id, offset: -20, forma: 'transferencia' },
         { desc: 'Rendimentos Selic & FII', valor: 184.20, tipo: 'receita', cat: catInvest, conta: contaNubank[0].id, offset: -15, forma: 'transferencia' },
         { desc: 'Salário Mensal', valor: 8500.00, tipo: 'receita', cat: catSalario, conta: contaItau[0].id, offset: -2, forma: 'transferencia' },
         
