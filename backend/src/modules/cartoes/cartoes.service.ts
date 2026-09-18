@@ -1,10 +1,11 @@
 import { query, withTransaction } from '../../config/database.js';
 import { CartaoInput, PagarFaturaInput } from './cartoes.schemas.js';
+import { determinarFaturaAtual } from '../../utils/fatura.utils.js';
 
 export class CartoesService {
   async listAll(userId: string) {
     const hoje = new Date();
-    const anoMesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    const anoMesCivil = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
     // Busca os cartões do usuário com dados da instituição
     const { rows: cartoes } = await query(
@@ -17,10 +18,26 @@ export class CartoesService {
       [userId]
     );
 
-    // Para cada cartão, calcula o limite utilizado (descontando faturas pagas) e o valor da fatura do mês atual
+    // Para cada cartão, calcula a competência dinâmica da fatura atual, o limite utilizado e o valor da fatura atual
     const result = await Promise.all(
       cartoes.map(async (cartao) => {
-        // Soma das faturas abertas / futuras a partir do mês atual, IGNORANDO competências que já foram pagas em fatura_paga
+        // Verifica se a fatura do mês civil corrente já foi paga
+        const { rows: faturaCivilRows } = await query(
+          `SELECT id FROM fatura_paga 
+           WHERE cartao_id = $1 AND usuario_id = $2 AND ano_mes = $3`,
+          [cartao.id, userId, anoMesCivil]
+        );
+        const faturaCivilPaga = faturaCivilRows.length > 0;
+
+        // Determina dinamicamente a competência da fatura atual (ex: se venceu dia 17 ou já foi paga, avança para o próximo mês)
+        const mesFaturaAtual = determinarFaturaAtual(
+          cartao.dia_fechamento,
+          cartao.dia_vencimento,
+          hoje,
+          faturaCivilPaga
+        );
+
+        // Soma das faturas abertas / futuras a partir da fatura atual, IGNORANDO competências que já foram pagas em fatura_paga
         const { rows: gastoTotalRows } = await query(
           `SELECT COALESCE(SUM(l.valor), 0) as total_utilizado
            FROM lancamento l
@@ -34,10 +51,10 @@ export class CartoesService {
                  AND fp.usuario_id = l.usuario_id
                  AND fp.ano_mes = TO_CHAR(l.data_competencia_fatura, 'YYYY-MM')
              )`,
-          [cartao.id, userId, `${anoMesAtual}-01`]
+          [cartao.id, userId, `${mesFaturaAtual}-01`]
         );
 
-        // Soma dos gastos específicos da fatura do mês atual e verifica se já está paga
+        // Soma dos gastos específicos da fatura da competência atual e verifica se já está paga
         const { rows: faturaAtualRows } = await query(
           `SELECT 
             COALESCE(SUM(l.valor), 0) as total_fatura,
@@ -52,7 +69,7 @@ export class CartoesService {
              AND l.usuario_id = $2
              AND l.tipo = 'despesa'
              AND TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $3`,
-          [cartao.id, userId, anoMesAtual]
+          [cartao.id, userId, mesFaturaAtual]
         );
 
         const limite = parseFloat(cartao.limite);
@@ -68,6 +85,7 @@ export class CartoesService {
           limite_disponivel: limiteDisponivel,
           fatura_atual: faturaAtualTotal,
           fatura_atual_paga: faturaPaga,
+          mes_fatura_atual: mesFaturaAtual,
           percentual_utilizado: limite > 0 ? parseFloat(((limiteUtilizado / limite) * 100).toFixed(1)) : 0,
         };
       })
@@ -173,11 +191,20 @@ export class CartoesService {
   }
 
   async getFatura(cartaoId: string, userId: string, anoMesParam?: string) {
-    const hoje = new Date();
-    const anoMes = anoMesParam || `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-
     const cartao = await this.getById(cartaoId, userId);
     if (!cartao) throw new Error('Cartão não encontrado.');
+
+    let anoMes = anoMesParam;
+    if (!anoMes) {
+      const hoje = new Date();
+      const anoMesCivil = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+      const { rows: faturaCivilRows } = await query(
+        `SELECT id FROM fatura_paga 
+         WHERE cartao_id = $1 AND usuario_id = $2 AND ano_mes = $3`,
+        [cartao.id, userId, anoMesCivil]
+      );
+      anoMes = determinarFaturaAtual(cartao.dia_fechamento, cartao.dia_vencimento, hoje, faturaCivilRows.length > 0);
+    }
 
     // Busca todos os lançamentos pertencentes a este ciclo de fatura deste usuário
     const { rows: itens } = await query(

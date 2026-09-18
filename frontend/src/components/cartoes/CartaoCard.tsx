@@ -59,7 +59,9 @@ export const CartaoCard: React.FC<CartaoCardProps> = ({
       <div className="grid grid-cols-2 gap-4 py-2 border-y border-slate-800/80">
         <div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Fatura Atual</span>
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+              Fatura Atual {cartao.mes_fatura_atual ? `(${cartao.mes_fatura_atual.split('-')[1]}/${cartao.mes_fatura_atual.split('-')[0]})` : ''}
+            </span>
             {cartao.fatura_atual_paga && (
               <span className="px-1.5 py-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 rounded-md">
                 Paga

@@ -57,6 +57,7 @@ export interface CartaoCredito {
   limite_disponivel?: number;
   fatura_atual?: number;
   fatura_atual_paga?: boolean;
+  mes_fatura_atual?: string;
   percentual_utilizado?: number;
 }
 

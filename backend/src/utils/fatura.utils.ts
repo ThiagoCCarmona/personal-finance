@@ -75,3 +75,55 @@ export function adicionarMesesCompetencia(dataCompetenciaStr: string, mesesParaA
 
   return `${ano}-${String(mes).padStart(2, '0')}-01`;
 }
+
+/**
+ * Determina a competência ('YYYY-MM') da fatura atual em aberto para um cartão,
+ * considerando a data de referência, o dia de fechamento, o dia de vencimento
+ * e se a fatura do mês civil corrente já foi paga.
+ */
+export function determinarFaturaAtual(
+  diaFechamento: number,
+  diaVencimento: number,
+  dataRef?: Date,
+  faturaMesCivilPaga: boolean = false
+): string {
+  const hoje = dataRef || new Date();
+  const ano = hoje.getFullYear();
+  const mes = hoje.getMonth() + 1;
+  const dia = hoje.getDate();
+
+  let anoFatura = ano;
+  let mesFatura = mes;
+
+  // Se o vencimento é no mesmo mês civil do fechamento (ex: fecha 12, vence 17)
+  const vencimentoNoMesmoMes = diaVencimento >= diaFechamento;
+
+  if (vencimentoNoMesmoMes) {
+    // 1. Se já passou do dia de vencimento (ex: hoje dia 18 e venceu dia 17), a fatura vigente já é a do próximo mês
+    if (dia > diaVencimento) {
+      mesFatura += 1;
+    }
+    // 2. Se já passou do dia de fechamento e a fatura daquele ciclo já foi paga, avança para a próxima
+    else if (dia > diaFechamento && faturaMesCivilPaga) {
+      mesFatura += 1;
+    }
+    // 3. Se a fatura do mês já foi paga mesmo antes do fechamento/vencimento
+    else if (faturaMesCivilPaga) {
+      mesFatura += 1;
+    }
+  } else {
+    // Vencimento no mês seguinte (ex: fecha dia 28, vence dia 05 do mês seguinte)
+    if (dia > diaFechamento) {
+      mesFatura += 1;
+    } else if (faturaMesCivilPaga) {
+      mesFatura += 1;
+    }
+  }
+
+  if (mesFatura > 12) {
+    mesFatura = 1;
+    anoFatura += 1;
+  }
+
+  return `${anoFatura}-${String(mesFatura).padStart(2, '0')}`;
+}

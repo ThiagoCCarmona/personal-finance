@@ -83,8 +83,10 @@ export const CartoesPage: React.FC = () => {
 
   const handleVerFatura = async (card: CartaoCredito) => {
     setFaturaCard(card);
+    const mesAlvo = card.mes_fatura_atual || faturaMes;
+    setFaturaMes(mesAlvo);
     setIsFaturaModalOpen(true);
-    await carregarFatura(card.id, faturaMes);
+    await carregarFatura(card.id, mesAlvo);
   };
 
   const carregarFatura = async (cardId: string, mes: string) => {
