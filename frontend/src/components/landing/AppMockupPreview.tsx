@@ -13,7 +13,9 @@ import {
   CheckCircle2, 
   Sparkles,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  ShoppingCart,
+  Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -31,7 +33,7 @@ interface AppMockupPreviewProps {
 }
 
 export const AppMockupPreview: React.FC<AppMockupPreviewProps> = ({ onOpenDemo, loadingDemo }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'cambio' | 'social' | 'cartoes'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'cambio' | 'social' | 'cartoes' | 'wishlist' | 'simulador'>('dashboard');
   const [privacyMode, setPrivacyMode] = useState(false);
 
   const formatMoney = (value: number, currency: string = 'BRL') => {
@@ -160,7 +162,31 @@ export const AppMockupPreview: React.FC<AppMockupPreviewProps> = ({ onOpenDemo, 
             }`}
           >
             <CreditCard size={16} />
-            <span>4. Cartões & Faturas Futuras</span>
+            <span>4. Cartões & Faturas</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('simulador')}
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+              activeTab === 'simulador'
+                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+          >
+            <ShoppingCart size={16} />
+            <span>5. Simulador de Gastos & Juros</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('wishlist')}
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
+              activeTab === 'wishlist'
+                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+          >
+            <Heart size={16} />
+            <span>6. Wishlist & Preços</span>
           </button>
         </div>
 
@@ -594,6 +620,92 @@ export const AppMockupPreview: React.FC<AppMockupPreviewProps> = ({ onOpenDemo, 
                       <span className="text-slate-500 text-[10px]">R$ 290,00/mês até Fev</span>
                     </div>
                   </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* TAB 5: SIMULADOR DE GASTOS & JUROS */}
+            {activeTab === 'simulador' && (
+              <motion.div
+                key="simulador"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25 }}
+                className="space-y-6"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-slate-900/80 border border-emerald-500/30 rounded-2xl">
+                    <span className="text-xs text-slate-400">Simulação: TV 65" 4K OLED</span>
+                    <div className="text-xl font-bold text-white mt-1">{formatMoney(4500.00)}</div>
+                    <span className="text-[11px] text-emerald-400 mt-2 block">10x de R$ 498,20 (com juros Price)</span>
+                  </div>
+
+                  <div className="p-4 bg-slate-900/80 border border-slate-800 rounded-2xl">
+                    <span className="text-xs text-slate-400">Saldo Livre Mês Seguinte</span>
+                    <div className="text-xl font-bold text-emerald-400 mt-1">{formatMoney(8402.10)}</div>
+                    <span className="text-[11px] text-slate-500 mt-2 block">Aguenta a parcela com folga</span>
+                  </div>
+
+                  <div className="p-4 bg-slate-900/80 border border-amber-500/30 rounded-2xl">
+                    <span className="text-xs text-slate-400">Custo Total dos Juros</span>
+                    <div className="text-xl font-bold text-amber-300 mt-1">{formatMoney(482.00)}</div>
+                    <span className="text-[11px] text-slate-500 mt-2 block">Economize pagando à vista com desconto</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 flex items-center justify-between">
+                  <span>Simula faturas futuras em moeda nacional ou moeda estrangeira com PTAX do Banco Central.</span>
+                  <span className="text-emerald-400 font-semibold">Testar na Conta Demo</span>
+                </div>
+              </motion.div>
+            )}
+
+            {/* TAB 6: WISHLIST & PREÇOS */}
+            {activeTab === 'wishlist' && (
+              <motion.div
+                key="wishlist"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25 }}
+                className="space-y-4"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold uppercase">Prioridade Alta</span>
+                        <h5 className="font-bold text-white text-sm mt-1">PlayStation 5 Pro</h5>
+                        <span className="text-xs text-slate-500">Categoria: Lazer & Desejos (30%)</span>
+                      </div>
+                      <span className="text-emerald-400 font-bold text-sm">{formatMoney(5899.00)}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 border-t border-slate-800 pt-2 flex justify-between">
+                      <span>Amazon: R$ 6.299 • Mercado Livre: R$ 5.899</span>
+                      <span className="text-emerald-400 font-semibold">Menor Preço Detectado</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold uppercase">Prioridade Média</span>
+                        <h5 className="font-bold text-white text-sm mt-1">Monitor Dell UltraSharp 32" 4K</h5>
+                        <span className="text-xs text-slate-500">Categoria: Trabalho & Setup (30%)</span>
+                      </div>
+                      <span className="text-emerald-400 font-bold text-sm">{formatMoney(4100.00)}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 border-t border-slate-800 pt-2 flex justify-between">
+                      <span>Loja Dell Oficial: R$ 4.499 • Kabum: R$ 4.100</span>
+                      <span className="text-emerald-400 font-semibold">Histórico de Queda -8%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs text-emerald-300 flex items-center justify-between">
+                  <span>Ao clicar em "Comprar", o sistema debita do saldo da conta ou lança na fatura do cartão automaticamente.</span>
+                  <span className="font-bold">Zero Retrabalho</span>
                 </div>
               </motion.div>
             )}

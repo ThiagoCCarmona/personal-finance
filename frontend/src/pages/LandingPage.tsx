@@ -14,6 +14,7 @@ import { Hero3DCanvas } from '../components/landing/Hero3DCanvas.js';
 import { AppMockupPreview } from '../components/landing/AppMockupPreview.js';
 import { Methodology503020Section } from '../components/landing/Methodology503020Section.js';
 import { PredictabilitySection } from '../components/landing/PredictabilitySection.js';
+import { SimulatorsAndWishlistSection } from '../components/landing/SimulatorsAndWishlistSection.js';
 import { BorderTravelerSection } from '../components/landing/BorderTravelerSection.js';
 import { ComparisonTableSection } from '../components/landing/ComparisonTableSection.js';
 import { ContinuousEvolutionSection } from '../components/landing/ContinuousEvolutionSection.js';
@@ -171,6 +172,11 @@ export const LandingPage: React.FC = () => {
       {/* PREVISIBILIDADE DO PRÓXIMO MÊS & SIMULADOR COM TABELA PRICE */}
       {/* ========================================================================= */}
       <PredictabilitySection />
+
+      {/* ========================================================================= */}
+      {/* SIMULADOR DE GASTOS, JUROS COMPOSTOS E WISHLIST INTELIGENTE */}
+      {/* ========================================================================= */}
+      <SimulatorsAndWishlistSection />
 
       {/* ========================================================================= */}
       {/* DIFERENCIAIS DE FRONTEIRA E VIAGENS */}

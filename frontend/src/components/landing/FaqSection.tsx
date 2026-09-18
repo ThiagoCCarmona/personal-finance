@@ -23,6 +23,14 @@ export const FaqSection: React.FC = () => {
       a: 'NUNCA. O FinanSmart Pro não solicita e não armazena nenhuma senha bancária sua. Todos os seus dados são criptografados e estritamente isolados por usuário. Seus hábitos e patrimônio jamais serão vendidos a financeiras ou seguradoras.'
     },
     {
+      q: 'O que é o Simulador de Gastos e como ele me protege antes de comprar?',
+      a: 'É uma ferramenta preventiva única: antes de passar o cartão em 10x ou fazer uma compra de alto valor, você digita o valor e as condições no simulador. O FinanSmart cruza o valor com o seu saldo atual, suas contas fixas e suas faturas futuras, calculando em segundos se o seu saldo bancário do próximo mês continuará saudável ou se você corre risco de entrar no cheque especial.'
+    },
+    {
+      q: 'Como funciona a Wishlist (Lista de Desejos) com débito inteligente?',
+      a: 'Você cadastra os itens que sonha em comprar (ex: eletrônicos, viagens, móveis), adiciona links das lojas e o sistema monitora os preços. Quando você decide realizar a compra, com apenas um clique o sistema debita o valor na sua conta bancária ou fatura do cartão desejado, já atribuindo a categoria aos 30% do orçamento (Estilo de Vida).'
+    },
+    {
       q: 'O sistema funciona no meu celular como aplicativo?',
       a: 'Sim! Ele é construído com tecnologia PWA (Progressive Web App). Basta abrir o site no Safari (iOS) ou Chrome (Android) e tocar em "Adicionar à Tela de Início". Ele cria um ícone idêntico ao de um app nativo, com carregamento instantâneo e layout adaptado para telas móveis.'
     },

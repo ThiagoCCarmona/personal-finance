@@ -24,7 +24,21 @@ export const ComparisonTableSection: React.FC = () => {
       apps: { status: 'cross', text: 'Apenas mostra o passado' },
     },
     {
-      feature: 'Simulador com Tabela Price',
+      feature: 'Simulador de Gastos & Faturas Futuras',
+      desc: 'Testa compra à vista vs parcelada antes de passar o cartão',
+      finan: { status: 'check', text: 'Simula impacto no saldo do próximo mês' },
+      excel: { status: 'cross', text: 'Difícil de modelar' },
+      apps: { status: 'cross', text: 'Não tem' },
+    },
+    {
+      feature: 'Wishlist (Lista de Desejos) Integrada',
+      desc: 'Histórico de preços por loja e débito automático ao comprar',
+      finan: { status: 'check', text: 'Nativo com categorização 50-30-20' },
+      excel: { status: 'cross', text: 'Planilha estática sem links' },
+      apps: { status: 'cross', text: 'Não tem' },
+    },
+    {
+      feature: 'Simulador com Tabela Price & Juros',
       desc: 'Compara parcelamento com juros vs. desconto à vista',
       finan: { status: 'check', text: 'Nativo em 1 clique' },
       excel: { status: 'cross', text: 'Exige fórmulas financeiras avançadas' },

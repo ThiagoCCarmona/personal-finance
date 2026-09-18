@@ -23,8 +23,9 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onOpenDemo, loadin
 
   const navLinks = [
     { label: '50-30-20', href: '#metodologia' },
-    { label: 'Previsão', href: '#previsibilidade' },
+    { label: 'Previsão & Gastos', href: '#simuladores-desejos' },
     { label: 'Telas Reais', href: '#mockup' },
+    { label: 'Wishlist & Juros', href: '#simuladores-desejos' },
     { label: 'Fronteira & Câmbio', href: '#fronteira' },
     { label: 'Comparativo', href: '#comparativo' },
     { label: 'Planos', href: '#planos' },
