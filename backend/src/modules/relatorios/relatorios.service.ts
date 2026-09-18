@@ -25,13 +25,18 @@ export class RelatoriosService {
     `;
     const params: any[] = [userId];
 
-    if (dataInicio) {
+    if (dataInicio && dataFim) {
+      params.push(dataInicio, dataFim);
+      sql += ` AND (
+        (l.data_compra >= $${params.length - 1} AND l.data_compra <= $${params.length})
+        OR (l.data_competencia_fatura IS NOT NULL AND l.data_competencia_fatura >= $${params.length - 1} AND l.data_competencia_fatura <= $${params.length})
+      )`;
+    } else if (dataInicio) {
       params.push(dataInicio);
-      sql += ` AND l.data_compra >= $${params.length}`;
-    }
-    if (dataFim) {
+      sql += ` AND (l.data_compra >= $${params.length} OR l.data_competencia_fatura >= $${params.length})`;
+    } else if (dataFim) {
       params.push(dataFim);
-      sql += ` AND l.data_compra <= $${params.length}`;
+      sql += ` AND (l.data_compra <= $${params.length} OR l.data_competencia_fatura <= $${params.length})`;
     }
     if (contaId) {
       params.push(contaId);
@@ -121,13 +126,18 @@ export class RelatoriosService {
     let whereClause = "WHERE l.status = 'efetivado' AND l.usuario_id = $1";
     const params: any[] = [userId];
 
-    if (dataInicio) {
+    if (dataInicio && dataFim) {
+      params.push(dataInicio, dataFim);
+      whereClause += ` AND (
+        (l.data_compra >= $${params.length - 1} AND l.data_compra <= $${params.length})
+        OR (l.data_competencia_fatura IS NOT NULL AND l.data_competencia_fatura >= $${params.length - 1} AND l.data_competencia_fatura <= $${params.length})
+      )`;
+    } else if (dataInicio) {
       params.push(dataInicio);
-      whereClause += ` AND l.data_compra >= $${params.length}`;
-    }
-    if (dataFim) {
+      whereClause += ` AND (l.data_compra >= $${params.length} OR l.data_competencia_fatura >= $${params.length})`;
+    } else if (dataFim) {
       params.push(dataFim);
-      whereClause += ` AND l.data_compra <= $${params.length}`;
+      whereClause += ` AND (l.data_compra <= $${params.length} OR l.data_competencia_fatura <= $${params.length})`;
     }
     if (contaId) {
       params.push(contaId);

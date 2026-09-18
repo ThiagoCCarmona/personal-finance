@@ -30,6 +30,7 @@ import { moedasRoutes } from './modules/moedas/moedas.routes.js';
 import { listaDesejoRoutes } from './modules/lista_desejo/lista_desejo.routes.js';
 import { usuariosRoutes } from './modules/usuarios/usuarios.routes.js';
 import { PtaxClient } from './modules/cambio/ptax-client.js';
+import { DemoShowcaseService } from './modules/demo/demo_showcase.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -141,6 +142,9 @@ async function start() {
       console.log('🔄 Sincronizando cotações horárias com AwesomeAPI...');
       ptaxClient.sincronizarCotacoesRecentes().catch(err => console.error('Erro na sincronização periódica de câmbio:', err));
     }, 60 * 60 * 1000);
+
+    // Inicialização da vitrine simulada do usuário 'teste' com auto-reset a cada 20 minutos
+    DemoShowcaseService.startScheduler();
   } catch (err) {
     console.error('Erro ao iniciar o servidor:', err);
     process.exit(1);

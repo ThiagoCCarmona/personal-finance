@@ -1,6 +1,6 @@
 import { query } from '../../config/database.js';
 import { SimularGastoInput } from './simulador_gastos.schema.js';
-import { calcularCompetenciaFatura } from '../../utils/fatura.utils.js';
+import { calcularCompetenciaFatura, determinarFaturaAtual } from '../../utils/fatura.utils.js';
 
 export interface ProjecaoFaturaMes {
   mes_ano: string;
@@ -121,22 +121,50 @@ export class SimuladorGastosService {
       );
       totalReceitasRecorrentes = parseFloat(rowsRecRec[0]?.total || '0');
 
-      const { rows: rowsFat } = await query(
-        `SELECT COALESCE(SUM(l.valor), 0) as total
-         FROM lancamento l
-         WHERE l.usuario_id = $1
-           AND l.tipo = 'despesa'
-           AND l.cartao_id IS NOT NULL
-           AND TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $2
-           AND NOT EXISTS (
-             SELECT 1 FROM fatura_paga fp
-             WHERE fp.cartao_id = l.cartao_id
-               AND fp.usuario_id = l.usuario_id
-               AND fp.ano_mes = $2
-           )`,
-        [userId, hojeAnoMes]
+      // Faturas de cartões de crédito abertas vigentes
+      const { rows: cartoesAtivos } = await query(
+        `SELECT c.id, c.dia_fechamento, c.dia_vencimento
+         FROM cartao_credito c
+         WHERE c.usuario_id = $1 AND c.ativo = TRUE`,
+        [userId]
       );
-      totalFaturasMes = parseFloat(rowsFat[0]?.total || '0');
+
+      const refDate = new Date();
+      for (const cartao of cartoesAtivos) {
+        // Verifica se a fatura do mês civil já foi paga
+        const { rows: fatPagaCivil } = await query(
+          `SELECT 1 FROM fatura_paga WHERE cartao_id = $1 AND usuario_id = $2 AND ano_mes = $3`,
+          [cartao.id, userId, hojeAnoMes]
+        );
+        const faturaCivilPaga = fatPagaCivil.length > 0;
+
+        const mesCompetenciaCartao = determinarFaturaAtual(
+          cartao.dia_fechamento,
+          cartao.dia_vencimento,
+          refDate,
+          faturaCivilPaga
+        );
+
+        // Verifica se a fatura da competência ativa já foi paga
+        const { rows: fatPagaComp } = await query(
+          `SELECT 1 FROM fatura_paga WHERE cartao_id = $1 AND usuario_id = $2 AND ano_mes = $3`,
+          [cartao.id, userId, mesCompetenciaCartao]
+        );
+
+        if (fatPagaComp.length === 0) {
+          const { rows: rowsFat } = await query(
+            `SELECT COALESCE(SUM(l.valor), 0) as total
+             FROM lancamento l
+             WHERE l.usuario_id = $1
+               AND l.cartao_id = $2
+               AND l.tipo = 'despesa'
+               AND TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $3`,
+            [userId, cartao.id, mesCompetenciaCartao]
+          );
+          totalFaturasMes += parseFloat(rowsFat[0]?.total || '0');
+        }
+      }
+      totalFaturasMes = Math.round(totalFaturasMes * 100) / 100;
 
       const { rows: rowsRecDesp } = await query(
         `SELECT COALESCE(SUM(valor), 0) as total

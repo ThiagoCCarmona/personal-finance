@@ -61,16 +61,56 @@ export class DashboardService {
       [userId]
     );
 
-    // Faturas de cartões de crédito deste mês
-    const { rows: rowsFaturas } = await query(
-      `SELECT COALESCE(SUM(l.valor), 0) as total_faturas
-       FROM lancamento l
-       WHERE l.usuario_id = $1
-         AND l.tipo = 'despesa'
-         AND l.cartao_id IS NOT NULL
-         AND TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $2`,
-      [userId, targetAnoMes]
+    // Faturas de cartões de crédito abertas vigentes
+    const { rows: cartoesAtivos } = await query(
+      `SELECT c.id, c.dia_fechamento, c.dia_vencimento
+       FROM cartao_credito c
+       WHERE c.usuario_id = $1 AND c.ativo = TRUE`,
+      [userId]
     );
+
+    let totalFaturasMes = 0;
+    const isMesAtual = targetAnoMes === `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+
+    for (const cartao of cartoesAtivos) {
+      let mesCompetenciaCartao = targetAnoMes;
+
+      if (isMesAtual) {
+        // Verifica se a fatura do mês civil já foi paga
+        const { rows: fatPagaRows } = await query(
+          `SELECT 1 FROM fatura_paga WHERE cartao_id = $1 AND usuario_id = $2 AND ano_mes = $3`,
+          [cartao.id, userId, targetAnoMes]
+        );
+        const faturaCivilPaga = fatPagaRows.length > 0;
+        mesCompetenciaCartao = (await import('../../utils/fatura.utils.js')).determinarFaturaAtual(
+          cartao.dia_fechamento,
+          cartao.dia_vencimento,
+          hoje,
+          faturaCivilPaga
+        );
+      }
+
+      // Verifica se a fatura da competência calculada já foi paga
+      const { rows: fatPagaComp } = await query(
+        `SELECT 1 FROM fatura_paga WHERE cartao_id = $1 AND usuario_id = $2 AND ano_mes = $3`,
+        [cartao.id, userId, mesCompetenciaCartao]
+      );
+
+      if (fatPagaComp.length === 0) {
+        const { rows: fatRows } = await query(
+          `SELECT COALESCE(SUM(l.valor), 0) as total
+           FROM lancamento l
+           WHERE l.cartao_id = $1
+             AND l.usuario_id = $2
+             AND l.tipo = 'despesa'
+             AND TO_CHAR(l.data_competencia_fatura, 'YYYY-MM') = $3`,
+          [cartao.id, userId, mesCompetenciaCartao]
+        );
+        totalFaturasMes += parseFloat(fatRows[0]?.total || '0');
+      }
+    }
+
+    totalFaturasMes = Math.round(totalFaturasMes * 100) / 100;
 
     // Despesas recorrentes fixas debitadas em conta (não cartão)
     const { rows: rowsRecDespesas } = await query(
@@ -84,10 +124,9 @@ export class DashboardService {
     );
 
     const totalReceitasRecorrentes = parseFloat(rowsRecReceitas[0]?.total_receitas_recorrentes || '0');
-    const totalFaturasMes = parseFloat(rowsFaturas[0]?.total_faturas || '0');
     const totalDespesasRecorrentesConta = parseFloat(rowsRecDespesas[0]?.total_despesas_recorrentes_conta || '0');
 
-    // Exemplo do usuário: Saldo atual (1k) + Receita fixa recorrente (2k) - Fatura do mês (1.5k) = Saldo projetado no mês seguinte (1.5k)
+    // Saldo projetado no próximo ciclo: Saldo atual + Receitas Recorrentes - Faturas Abertas - Despesas Fixas em Conta
     const saldoProjetadoMesSeguinte = Math.round((saldoConsolidado + totalReceitasRecorrentes - totalFaturasMes - totalDespesasRecorrentesConta) * 100) / 100;
 
     let variacaoDespesas = 0;
@@ -189,8 +228,29 @@ export class DashboardService {
       [userId]
     );
 
+    const isMesAtual = targetAnoMes === `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+
     const faturas = await Promise.all(
       cartoes.map(async (cartao) => {
+        let mesCompetenciaCartao = targetAnoMes;
+
+        if (isMesAtual) {
+          // Checa se a fatura do mês civil atual já foi paga
+          const { rows: fpCheck } = await query(
+            `SELECT 1 FROM fatura_paga fp WHERE fp.cartao_id = $1 AND fp.usuario_id = $2 AND fp.ano_mes = $3`,
+            [cartao.id, userId, targetAnoMes]
+          );
+          const faturaCivilPaga = fpCheck.length > 0;
+
+          // Determina a fatura ativa segundo a regra de fechamento/vencimento e pagamento
+          mesCompetenciaCartao = (await import('../../utils/fatura.utils.js')).determinarFaturaAtual(
+            cartao.dia_fechamento,
+            cartao.dia_vencimento,
+            hoje,
+            faturaCivilPaga
+          );
+        }
+
         const { rows: faturaRows } = await query(
           `SELECT 
             COALESCE(SUM(valor), 0) as total_fatura, 
@@ -206,7 +266,7 @@ export class DashboardService {
              AND usuario_id = $2
              AND tipo = 'despesa'
              AND TO_CHAR(data_competencia_fatura, 'YYYY-MM') = $3`,
-          [cartao.id, userId, targetAnoMes]
+          [cartao.id, userId, mesCompetenciaCartao]
         );
 
         const totalFatura = parseFloat(faturaRows[0]?.total_fatura || '0');
@@ -219,7 +279,8 @@ export class DashboardService {
           instituicao_nome: cartao.instituicao_nome,
           instituicao_cor: cartao.instituicao_cor,
           dia_vencimento: cartao.dia_vencimento,
-          data_vencimento: `${targetAnoMes}-${String(cartao.dia_vencimento).padStart(2, '0')}`,
+          ano_mes: mesCompetenciaCartao,
+          data_vencimento: `${mesCompetenciaCartao}-${String(cartao.dia_vencimento).padStart(2, '0')}`,
           total_fatura: totalFatura,
           total_itens: totalItens,
           paga: faturaPaga,
