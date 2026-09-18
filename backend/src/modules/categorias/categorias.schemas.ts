@@ -6,6 +6,7 @@ export const categoriaSchema = z.object({
   icone: z.string().optional().default('Tag'),
   cor: z.string().optional().default('#6B7280'),
   categoria_pai_id: z.string().uuid().nullable().optional(),
+  grupo_50_30_20: z.enum(['essencial', 'estilo_vida', 'investimento', 'receita']).optional(),
   ativo: z.boolean().optional().default(true),
 });
 

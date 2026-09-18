@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Lock, User as UserIcon, Wallet2, LogIn } from 'lucide-react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Lock, User as UserIcon, Wallet2, LogIn, Sparkles, ArrowLeft, MessageCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.js';
 
 export const LoginPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [loginStr, setLoginStr] = useState('');
   const [senha, setSenha] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -17,6 +18,20 @@ export const LoginPage: React.FC = () => {
       navigate('/setup');
     }
   }, [setupRequired, navigate]);
+
+  // Preenche credenciais da demo se vier via query param ?demo=true
+  useEffect(() => {
+    if (searchParams.get('demo') === 'true') {
+      setLoginStr('admin');
+      setSenha('admin123');
+    }
+  }, [searchParams]);
+
+  const handlePreencherDemo = () => {
+    setLoginStr('admin');
+    setSenha('admin123');
+    setError(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +50,18 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-950">
+      
+      {/* Botão de Retorno para a Landing Page */}
+      <div className="w-full max-w-md mb-4">
+        <Link
+          to="/landing"
+          className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-emerald-400 transition-colors"
+        >
+          <ArrowLeft size={16} />
+          <span>Voltar para a Apresentação do Sistema</span>
+        </Link>
+      </div>
+
       <div className="w-full max-w-md p-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl space-y-6 animate-scaleUp">
         {/* Cabeçalho */}
         <div className="text-center space-y-2">
@@ -45,8 +72,28 @@ export const LoginPage: React.FC = () => {
             Acesso ao Sistema
           </h1>
           <p className="text-sm text-slate-400">
-            Acesso restrito a usuários autorizados
+            Entre com suas credenciais ou explore a demonstração
           </p>
+        </div>
+
+        {/* Botão de Preenchimento da Conta Demo */}
+        <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-2xl flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+              <Sparkles size={16} />
+            </div>
+            <div className="text-xs">
+              <span className="font-bold text-white block">Quer testar o sistema?</span>
+              <span className="text-emerald-300/80">Conta demo com +R$ 380k simulados</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handlePreencherDemo}
+            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md transition-colors"
+          >
+            Preencher Demo
+          </button>
         </div>
 
         {error && (
@@ -100,8 +147,17 @@ export const LoginPage: React.FC = () => {
           </button>
         </form>
 
-        <div className="pt-2 text-center text-xs text-slate-500">
-          Novos acessos devem ser solicitados diretamente ao administrador do sistema.
+        <div className="pt-2 text-center text-xs text-slate-500 flex flex-col items-center gap-1.5">
+          <span>Ainda não possui conta individual?</span>
+          <a
+            href="https://wa.me/5545991325244?text=Ol%C3%A1!%20Gostaria%20de%20solicitar%20uma%20conta%20no%20FinanSmart%20Pro."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-400 hover:underline font-semibold flex items-center gap-1"
+          >
+            <MessageCircle size={14} />
+            <span>Solicitar acesso pelo WhatsApp (45) 99132-5244</span>
+          </a>
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { api } from '../services/api.js';
 import { Recorrencia, Conta, CartaoCredito, Categoria } from '../types/index.js';
 import { PrivacyValue } from '../components/common/PrivacyValue.js';
 import { RecorrenciaFormModal } from '../components/recorrencias/RecorrenciaFormModal.js';
+import { ModalConfirmarLancamentoRecorrencia } from '../components/recorrencias/ModalConfirmarLancamentoRecorrencia.js';
 
 export const RecorrenciasPage: React.FC = () => {
   const [recorrencias, setRecorrencias] = useState<Recorrencia[]>([]);
@@ -14,6 +15,9 @@ export const RecorrenciasPage: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecorrencia, setEditingRecorrencia] = useState<Recorrencia | null>(null);
+
+  const [recorrenciaParaLancar, setRecorrenciaParaLancar] = useState<Recorrencia | null>(null);
+  const [isConfirmarLancarOpen, setIsConfirmarLancarOpen] = useState(false);
 
   const hoje = new Date();
   const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
@@ -57,13 +61,14 @@ export const RecorrenciasPage: React.FC = () => {
     }
   };
 
-  const handleLancarAgora = async (id: string) => {
-    try {
-      await api.lancarRecorrencia(id, mesAtual);
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Falha ao lançar recorrência.');
-    }
+  const handleAbrirConfirmacaoLancar = (rec: Recorrencia) => {
+    setRecorrenciaParaLancar(rec);
+    setIsConfirmarLancarOpen(true);
+  };
+
+  const handleConfirmarLancar = async (id: string, anoMesParam: string, valorCustomizado: number) => {
+    await api.lancarRecorrencia(id, anoMesParam, valorCustomizado);
+    loadData();
   };
 
   const totalDespesasFixas = recorrencias
@@ -148,6 +153,13 @@ export const RecorrenciasPage: React.FC = () => {
                         rec.tipo === 'despesa' ? 'bg-rose-500' : 'bg-emerald-500'
                       }`} />
                       <h3 className="text-base font-semibold text-slate-100">{rec.descricao}</h3>
+                      <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                        rec.natureza === 'variavel'
+                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                      }`}>
+                        {rec.natureza === 'variavel' ? 'Variável (Média)' : 'Fixo'}
+                      </span>
                     </div>
                     <span className="text-xs text-slate-400 mt-0.5 inline-block">
                       {rec.categoria_nome} • {rec.frequencia}
@@ -186,6 +198,9 @@ export const RecorrenciasPage: React.FC = () => {
                     }`}>
                       <PrivacyValue value={rec.valor} />
                     </div>
+                    {rec.natureza === 'variavel' && (
+                      <span className="text-[10px] text-slate-500">Média estimada</span>
+                    )}
                   </div>
 
                   <div>
@@ -196,7 +211,7 @@ export const RecorrenciasPage: React.FC = () => {
                       </span>
                     ) : (
                       <button
-                        onClick={() => handleLancarAgora(rec.id)}
+                        onClick={() => handleAbrirConfirmacaoLancar(rec)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 text-xs font-semibold transition-all"
                         title="Efetivar lançamento no mês atual"
                       >
@@ -223,6 +238,14 @@ export const RecorrenciasPage: React.FC = () => {
         contas={contas}
         cartoes={cartoes}
         categorias={categorias}
+      />
+
+      <ModalConfirmarLancamentoRecorrencia
+        isOpen={isConfirmarLancarOpen}
+        onClose={() => setIsConfirmarLancarOpen(false)}
+        onConfirm={handleConfirmarLancar}
+        recorrencia={recorrenciaParaLancar}
+        anoMes={mesAtual}
       />
     </div>
   );

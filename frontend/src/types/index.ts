@@ -98,6 +98,7 @@ export interface CompraParcelada {
 export interface Recorrencia {
   id: string;
   tipo: 'despesa' | 'receita';
+  natureza?: 'fixo' | 'variavel';
   descricao: string;
   valor: number;
   categoria_id: string;
@@ -128,6 +129,7 @@ export interface Categoria {
   cor: string;
   categoria_pai_id?: string | null;
   categoria_pai_nome?: string | null;
+  grupo_50_30_20?: 'essencial' | 'estilo_vida' | 'investimento' | 'receita';
   ativo: boolean;
   subcategorias?: Categoria[];
 }
@@ -162,6 +164,22 @@ export interface Lancamento {
   criado_em: string;
 }
 
+export interface DetalheGrupo503020 {
+  teto: number;
+  gasto: number;
+  restante: number;
+  percentualDisponivel: number;
+  percentualGasto: number;
+  estourado: boolean;
+}
+
+export interface Regra503020 {
+  baseReceitas: number;
+  essenciais: DetalheGrupo503020;
+  estiloVida: DetalheGrupo503020;
+  investimentos: DetalheGrupo503020;
+}
+
 export interface DashboardResumo {
   periodo: string;
   mesAnterior: string;
@@ -174,8 +192,10 @@ export interface DashboardResumo {
   variacaoDespesasPercentual: number;
   saldoProjetadoMesSeguinte?: number;
   totalReceitasRecorrentes?: number;
+  totalReceitasFixas?: number;
   totalFaturasMes?: number;
   totalDespesasRecorrentesConta?: number;
+  regra503020?: Regra503020;
 }
 
 export interface ContasAPagarResumo {
@@ -193,11 +213,13 @@ export interface ContasAPagarResumo {
     data_vencimento: string;
     total_fatura: number;
     total_itens: number;
+    paga?: boolean;
   }>;
   recorrencias: Array<{
     id: string;
     descricao: string;
     tipo?: 'despesa' | 'receita';
+    natureza?: 'fixo' | 'variavel';
     valor: number;
     dia_referencia: number;
     data_vencimento: string;

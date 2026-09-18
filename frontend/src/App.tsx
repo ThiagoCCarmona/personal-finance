@@ -5,6 +5,7 @@ import { PrivacyProvider } from './contexts/PrivacyContext.js';
 import { AppLayout } from './components/layout/AppLayout.js';
 import { SetupPage } from './pages/SetupPage.js';
 import { LoginPage } from './pages/LoginPage.js';
+import { LandingPage } from './pages/LandingPage.js';
 import { DashboardPage } from './pages/DashboardPage.js';
 import { LancamentosPage } from './pages/LancamentosPage.js';
 import { ContasPage } from './pages/ContasPage.js';
@@ -59,25 +60,54 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   );
 };
 
+// Rota raiz inteligente: visitantes não autenticados veem a Landing Page; autenticados vão ao Dashboard
+const RootRoute: React.FC = () => {
+  const { user, loading, setupRequired } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs">Carregando sistema...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (setupRequired) {
+    return <Navigate to="/setup" replace />;
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <LandingPage />;
+};
+
 export const App: React.FC = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
         <PrivacyProvider>
           <Routes>
+            <Route path="/landing" element={<LandingPage />} />
             <Route path="/setup" element={<SetupPage />} />
             <Route path="/login" element={<LoginPage />} />
 
-            {/* Rotas Autenticadas */}
+            {/* Raiz Inteligente */}
+            <Route path="/" element={<RootRoute />} />
+
+            {/* Rotas Internas Autenticadas */}
             <Route
-              path="/"
               element={
                 <ProtectedRoute>
                   <AppLayout />
                 </ProtectedRoute>
               }
             >
-              <Route index element={<DashboardPage />} />
+              <Route path="dashboard" element={<DashboardPage />} />
               <Route path="lancamentos" element={<LancamentosPage />} />
               <Route path="cartoes" element={<CartoesPage />} />
               <Route path="recorrencias" element={<RecorrenciasPage />} />

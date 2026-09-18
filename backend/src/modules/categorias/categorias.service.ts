@@ -47,9 +47,24 @@ export class CategoriasService {
   }
 
   async create(userId: string, input: CategoriaInput) {
+    let grupo = input.grupo_50_30_20;
+
+    if (input.tipo === 'receita') {
+      grupo = 'receita';
+    } else if (!grupo && input.categoria_pai_id) {
+      const pai = await this.getById(input.categoria_pai_id, userId);
+      if (pai?.grupo_50_30_20) {
+        grupo = pai.grupo_50_30_20;
+      }
+    }
+
+    if (!grupo) {
+      grupo = input.tipo === 'receita' ? 'receita' : 'essencial';
+    }
+
     const { rows } = await query(
-      `INSERT INTO categoria (usuario_id, nome, tipo, icone, cor, categoria_pai_id, ativo)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO categoria (usuario_id, nome, tipo, icone, cor, categoria_pai_id, grupo_50_30_20, ativo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [
         userId,
@@ -58,6 +73,7 @@ export class CategoriasService {
         input.icone || 'Tag',
         input.cor || '#6B7280',
         input.categoria_pai_id || null,
+        grupo,
         input.ativo ?? true,
       ]
     );
@@ -88,6 +104,10 @@ export class CategoriasService {
     if (input.categoria_pai_id !== undefined) {
       fields.push(`categoria_pai_id = $${idx++}`);
       values.push(input.categoria_pai_id);
+    }
+    if (input.grupo_50_30_20 !== undefined) {
+      fields.push(`grupo_50_30_20 = $${idx++}`);
+      values.push(input.grupo_50_30_20);
     }
     if (input.ativo !== undefined) {
       fields.push(`ativo = $${idx++}`);

@@ -11,6 +11,8 @@ import { api } from '../services/api.js';
 import { DashboardResumo, GastoCategoria, EvolucaoItem, Lancamento, ContasAPagarResumo } from '../types/index.js';
 import { PrivacyValue } from '../components/common/PrivacyValue.js';
 import { usePrivacy } from '../contexts/PrivacyContext.js';
+import { CardRegra503020 } from '../components/dashboard/CardRegra503020.js';
+import { ModalConfirmarLancamentoRecorrencia } from '../components/recorrencias/ModalConfirmarLancamentoRecorrencia.js';
 
 export const DashboardPage: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -19,6 +21,9 @@ export const DashboardPage: React.FC = () => {
   const [evolucao, setEvolucao] = useState<EvolucaoItem[]>([]);
   const [recentes, setRecentes] = useState<Lancamento[]>([]);
   const [contasAPagar, setContasAPagar] = useState<ContasAPagarResumo | null>(null);
+
+  const [recorrenciaParaLancar, setRecorrenciaParaLancar] = useState<any | null>(null);
+  const [isConfirmarLancarOpen, setIsConfirmarLancarOpen] = useState(false);
 
   const { isPrivate } = usePrivacy();
 
@@ -60,13 +65,14 @@ export const DashboardPage: React.FC = () => {
     setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
-  const handleLancarRecorrencia = async (id: string) => {
-    try {
-      await api.lancarRecorrencia(id, anoMes);
-      loadDashboardData();
-    } catch (err: any) {
-      alert(err.message || 'Falha ao lançar recorrência.');
-    }
+  const handleAbrirConfirmarLancar = (rec: any) => {
+    setRecorrenciaParaLancar(rec);
+    setIsConfirmarLancarOpen(true);
+  };
+
+  const handleConfirmarLancar = async (id: string, anoMesParam: string, valorCustomizado: number) => {
+    await api.lancarRecorrencia(id, anoMesParam, valorCustomizado);
+    loadDashboardData();
   };
 
   const mesFormatado = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -229,6 +235,9 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Card Regra 50-30-20: Distribuição Salarial com barras decrescentes */}
+      <CardRegra503020 regra={resumo?.regra503020} />
+
       {/* BLOCO NOVO FASE 2: Faturas e Contas a Pagar do Mês (com Previsto vs Já Lançado) */}
       <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -283,10 +292,12 @@ export const DashboardPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-base font-bold text-rose-400">
+                      <div className={`text-base font-bold ${fat.paga ? 'text-emerald-400' : 'text-rose-400'}`}>
                         <PrivacyValue value={fat.total_fatura} />
                       </div>
-                      <span className="text-[10px] text-slate-500 uppercase font-medium">Fatura Aberta</span>
+                      <span className={`text-[10px] uppercase font-medium ${fat.paga ? 'text-emerald-400 font-bold' : 'text-slate-500'}`}>
+                        {fat.paga ? '✓ Fatura Paga' : 'Fatura Aberta'}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -322,6 +333,13 @@ export const DashboardPage: React.FC = () => {
                         }`}>
                           {rec.tipo === 'receita' ? 'Receita' : 'Despesa'}
                         </span>
+                        <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                          rec.natureza === 'variavel'
+                            ? 'bg-amber-950/80 text-amber-300 border border-amber-800/50'
+                            : 'bg-blue-950/80 text-blue-300 border border-blue-800/50'
+                        }`}>
+                          {rec.natureza === 'variavel' ? 'Variável' : 'Fixo'}
+                        </span>
                       </div>
                       <span className="text-[11px] text-slate-400">
                         Dia {rec.dia_referencia} • {rec.categoria_nome}
@@ -345,7 +363,7 @@ export const DashboardPage: React.FC = () => {
                         </span>
                       ) : (
                         <button
-                          onClick={() => handleLancarRecorrencia(rec.id)}
+                          onClick={() => handleAbrirConfirmarLancar(rec)}
                           className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 text-[11px] font-semibold flex items-center gap-1 transition-colors"
                           title="Efetivar lançamento no mês"
                         >
@@ -499,6 +517,14 @@ export const DashboardPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      <ModalConfirmarLancamentoRecorrencia
+        isOpen={isConfirmarLancarOpen}
+        onClose={() => setIsConfirmarLancarOpen(false)}
+        onConfirm={handleConfirmarLancar}
+        recorrencia={recorrenciaParaLancar}
+        anoMes={anoMes}
+      />
     </div>
   );
 };

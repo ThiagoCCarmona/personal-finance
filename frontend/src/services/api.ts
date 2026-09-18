@@ -99,7 +99,7 @@ export const api = {
   createRecorrencia: (body: any) => request<import('../types/index.js').Recorrencia>('/recorrencias', { method: 'POST', body: JSON.stringify(body) }),
   updateRecorrencia: (id: string, body: any) => request<import('../types/index.js').Recorrencia>(`/recorrencias/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteRecorrencia: (id: string) => request<any>(`/recorrencias/${id}`, { method: 'DELETE' }),
-  lancarRecorrencia: (id: string, anoMes?: string) => request<any>(`/recorrencias/${id}/lancar`, { method: 'POST', body: JSON.stringify({ anoMes }) }),
+  lancarRecorrencia: (id: string, anoMes?: string, valorCustomizado?: number) => request<any>(`/recorrencias/${id}/lancar`, { method: 'POST', body: JSON.stringify({ anoMes, valorCustomizado }) }),
 
   // Categorias
   getCategorias: (tipo?: string) => request<{ flat: import('../types/index.js').Categoria[]; tree: import('../types/index.js').Categoria[] }>(`/categorias${tipo ? `?tipo=${tipo}` : ''}`),

@@ -38,10 +38,15 @@ export class RecorrenciasController {
     return reply.send({ message: 'Recorrência removida com sucesso' });
   }
 
-  async lancar(req: FastifyRequest<{ Params: { id: string }; Body: { anoMes?: string } }>, reply: FastifyReply) {
+  async lancar(req: FastifyRequest<{ Params: { id: string }; Body: { anoMes?: string; valor?: number } }>, reply: FastifyReply) {
     const userId = (req as any).user.id;
-    const anoMes = (req.body as any)?.anoMes;
-    const lancamento = await recorrenciasService.lancarNaCompetencia(req.params.id, userId, anoMes);
+    const { anoMes, valor } = (req.body as any) || {};
+    const lancamento = await recorrenciasService.lancarNaCompetencia(
+      req.params.id, 
+      userId, 
+      anoMes, 
+      valor ? Number(valor) : undefined
+    );
     return reply.status(201).send({
       message: 'Lançamento efetivado com sucesso a partir da recorrência!',
       lancamento,

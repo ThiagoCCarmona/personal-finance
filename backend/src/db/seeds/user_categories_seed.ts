@@ -5,102 +5,153 @@ export interface CategorySeedDef {
   tipo: 'despesa' | 'receita';
   icone: string;
   cor: string;
+  grupo_50_30_20: 'essencial' | 'estilo_vida' | 'investimento' | 'receita';
   subcategorias?: string[];
 }
 
 export const DEFAULT_USER_CATEGORIES: CategorySeedDef[] = [
-  // Despesas
+  // ==========================================
+  // 1. GASTOS ESSENCIAIS (50% - Necessidades Básicas)
+  // ==========================================
   {
-    nome: 'Alimentação',
-    tipo: 'despesa',
-    icone: 'Utensils',
-    cor: '#EF4444',
-    subcategorias: ['Supermercado', 'Restaurantes', 'Delivery / Lanches', 'Café & Padaria'],
-  },
-  {
-    nome: 'Transporte',
-    tipo: 'despesa',
-    icone: 'Car',
-    cor: '#F59E0B',
-    subcategorias: ['Combustível', 'Aplicativos / Táxi', 'Estacionamento & Pedágio', 'Manutenção Veicular'],
-  },
-  {
-    nome: 'Moradia',
+    nome: 'Moradia & Habitação',
     tipo: 'despesa',
     icone: 'Home',
     cor: '#3B82F6',
-    subcategorias: ['Aluguel / Condomínio', 'Energia Elétrica', 'Água & Gás', 'Internet Fibra'],
+    grupo_50_30_20: 'essencial',
+    subcategorias: ['Aluguel / Condomínio', 'IPTU & Taxas', 'Manutenção & Reparos', 'Seguro Residencial'],
   },
   {
-    nome: 'Saúde & Bem-Estar',
+    nome: 'Contas de Consumo',
+    tipo: 'despesa',
+    icone: 'Zap',
+    cor: '#0EA5E9',
+    grupo_50_30_20: 'essencial',
+    subcategorias: ['Energia Elétrica', 'Água & Esgoto', 'Gás', 'Internet Fibra', 'Telefonia / Celular'],
+  },
+  {
+    nome: 'Alimentação Essencial',
+    tipo: 'despesa',
+    icone: 'ShoppingCart',
+    cor: '#EF4444',
+    grupo_50_30_20: 'essencial',
+    subcategorias: ['Supermercado', 'Açougue & Peixaria', 'Feira & Hortifrúti', 'Padaria'],
+  },
+  {
+    nome: 'Saúde & Cuidados',
     tipo: 'despesa',
     icone: 'HeartPulse',
     cor: '#EC4899',
-    subcategorias: ['Farmácia', 'Consultas & Exames', 'Plano de Saúde', 'Academia & Esportes'],
+    grupo_50_30_20: 'essencial',
+    subcategorias: ['Plano de Saúde', 'Farmácia & Remédios', 'Consultas & Exames', 'Dentista & Terapias'],
   },
   {
-    nome: 'Lazer & Cultura',
+    nome: 'Transporte Essencial',
     tipo: 'despesa',
-    icone: 'Gamepad2',
-    cor: '#8B5CF6',
-    subcategorias: ['Viagens & Passeios', 'Cinema & Shows', 'Bares & Baladas', 'Hobbies'],
+    icone: 'Car',
+    cor: '#F59E0B',
+    grupo_50_30_20: 'essencial',
+    subcategorias: ['Combustível', 'Transporte Público / Metrô', 'Manutenção Veicular', 'IPVA & Seguro Auto'],
   },
   {
-    nome: 'Educação & Carreira',
+    nome: 'Educação & Formação',
     tipo: 'despesa',
     icone: 'GraduationCap',
     cor: '#10B981',
-    subcategorias: ['Cursos & Certificações', 'Livros & Materiais', 'Faculdade / Especialização'],
+    grupo_50_30_20: 'essencial',
+    subcategorias: ['Mensalidade Escolar / Faculdade', 'Cursos & Treinamentos', 'Livros & Material Didático'],
   },
+
+  // ==========================================
+  // 2. ESTILO DE VIDA & DESEJOS (30% - Qualidade de Vida)
+  // ==========================================
   {
-    nome: 'Assinaturas & Serviços',
+    nome: 'Restaurantes & Bares',
     tipo: 'despesa',
-    icone: 'Film',
-    cor: '#6366F1',
-    subcategorias: ['Streaming (Netflix, Spotify)', 'Softwares & Ferramentas', 'Telefonia / Celular'],
+    icone: 'Utensils',
+    cor: '#F97316',
+    grupo_50_30_20: 'estilo_vida',
+    subcategorias: ['Restaurantes & Almoços', 'Bares & Baladas', 'Delivery / Ifood', 'Cafés & Sobremesas'],
   },
   {
-    nome: 'Vestuário & Cuidados',
+    nome: 'Lazer, Viagens & Hobbies',
+    tipo: 'despesa',
+    icone: 'Gamepad2',
+    cor: '#8B5CF6',
+    grupo_50_30_20: 'estilo_vida',
+    subcategorias: ['Viagens & Hospedagem', 'Cinema, Shows & Eventos', 'Passeios de Fim de Semana', 'Hobbies & Esportes'],
+  },
+  {
+    nome: 'Compras & Cuidados Pessoais',
     tipo: 'despesa',
     icone: 'Shirt',
     cor: '#14B8A6',
-    subcategorias: ['Roupas & Calçados', 'Barbearia / Salão'],
+    grupo_50_30_20: 'estilo_vida',
+    subcategorias: ['Vestuário & Calçados', 'Barbearia & Salão', 'Cosméticos & Perfumaria', 'Eletrônicos & Gadgets'],
   },
   {
-    nome: 'Outros Gastos',
+    nome: 'Assinaturas & Streaming',
     tipo: 'despesa',
-    icone: 'MoreHorizontal',
-    cor: '#6B7280',
-    subcategorias: ['Imprevistos', 'Taxas Bancárias', 'Doações'],
+    icone: 'Film',
+    cor: '#6366F1',
+    grupo_50_30_20: 'estilo_vida',
+    subcategorias: ['Streaming (Netflix, Spotify)', 'Games & Softwares', 'Clubes de Assinatura'],
   },
-  // Receitas
+
+  // ==========================================
+  // 3. METAS, INVESTIMENTOS & FUTURO (20% - Construção de Patrimônio)
+  // ==========================================
+  {
+    nome: 'Reserva & Investimentos',
+    tipo: 'despesa',
+    icone: 'TrendingUp',
+    cor: '#059669',
+    grupo_50_30_20: 'investimento',
+    subcategorias: ['Reserva de Emergência', 'Renda Fixa / Tesouro', 'Ações & FIIs', 'Criptoativos'],
+  },
+  {
+    nome: 'Amortizações & Dívidas',
+    tipo: 'despesa',
+    icone: 'ShieldCheck',
+    cor: '#64748B',
+    grupo_50_30_20: 'investimento',
+    subcategorias: ['Amortização de Financiamento', 'Quitação de Empréstimos'],
+  },
+
+  // ==========================================
+  // 4. RECEITAS
+  // ==========================================
   {
     nome: 'Salário & Remuneração',
     tipo: 'receita',
     icone: 'Briefcase',
     cor: '#10B981',
+    grupo_50_30_20: 'receita',
     subcategorias: ['Salário Mensal', '13º Salário', 'Férias', 'Bônus & PLR'],
   },
   {
-    nome: 'Investimentos & Dividendos',
-    tipo: 'receita',
-    icone: 'TrendingUp',
-    cor: '#059669',
-    subcategorias: ['Dividendos & JCP', 'Rendimentos de Renda Fixa', 'Ganhos com Vendas'],
-  },
-  {
-    nome: 'Serviços & Freelances',
+    nome: 'Renda Extra & Freelance',
     tipo: 'receita',
     icone: 'Award',
     cor: '#34D399',
-    subcategorias: ['Consultoria', 'Projetos Extras'],
+    grupo_50_30_20: 'receita',
+    subcategorias: ['Consultoria', 'Projetos Freelance', 'Comissões & Prêmios'],
   },
   {
-    nome: 'Outras Receitas',
+    nome: 'Rendimentos de Ativos',
+    tipo: 'receita',
+    icone: 'LineChart',
+    cor: '#059669',
+    grupo_50_30_20: 'receita',
+    subcategorias: ['Dividendos & JCP', 'Rendimentos de Renda Fixa', 'Aluguéis Recebidos'],
+  },
+  {
+    nome: 'Outras Entradas',
     tipo: 'receita',
     icone: 'PlusCircle',
     cor: '#6EE7B7',
-    subcategorias: ['Reembolsos', 'Vendas de Itens Pessoais', 'Presentes'],
+    grupo_50_30_20: 'receita',
+    subcategorias: ['Reembolsos', 'Venda de Bens Pessoais', 'Presentes & Doações'],
   },
 ];
 
@@ -109,7 +160,7 @@ export const DEFAULT_USER_CATEGORIES: CategorySeedDef[] = [
  */
 export async function seedUserDefaultCategories(userId: string, client: PoolClient) {
   for (const cat of DEFAULT_USER_CATEGORIES) {
-    // Insere categoria pai se não existir para este usuário
+    // Insere ou atualiza categoria pai para este usuário
     let catPaiId: string;
     const { rows: existing } = await client.query(
       `SELECT id FROM categoria WHERE usuario_id = $1 AND nome = $2 AND tipo = $3 LIMIT 1`,
@@ -118,17 +169,23 @@ export async function seedUserDefaultCategories(userId: string, client: PoolClie
 
     if (existing.length > 0) {
       catPaiId = existing[0].id;
+      await client.query(
+        `UPDATE categoria 
+         SET grupo_50_30_20 = $1, icone = $2, cor = $3
+         WHERE id = $4`,
+        [cat.grupo_50_30_20, cat.icone, cat.cor, catPaiId]
+      );
     } else {
       const { rows: inserted } = await client.query(
-        `INSERT INTO categoria (usuario_id, nome, tipo, icone, cor, ativo)
-         VALUES ($1, $2, $3, $4, $5, TRUE)
+        `INSERT INTO categoria (usuario_id, nome, tipo, icone, cor, grupo_50_30_20, ativo)
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE)
          RETURNING id`,
-        [userId, cat.nome, cat.tipo, cat.icone, cat.cor]
+        [userId, cat.nome, cat.tipo, cat.icone, cat.cor, cat.grupo_50_30_20]
       );
       catPaiId = inserted[0].id;
     }
 
-    // Insere subcategorias filhas
+    // Insere subcategorias filhas herdando o grupo 50-30-20 da categoria pai
     if (cat.subcategorias && cat.subcategorias.length > 0) {
       for (const sub of cat.subcategorias) {
         const { rows: subExist } = await client.query(
@@ -137,9 +194,16 @@ export async function seedUserDefaultCategories(userId: string, client: PoolClie
         );
         if (subExist.length === 0) {
           await client.query(
-            `INSERT INTO categoria (usuario_id, nome, tipo, icone, cor, categoria_pai_id, ativo)
-             VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
-            [userId, sub, cat.tipo, cat.icone, cat.cor, catPaiId]
+            `INSERT INTO categoria (usuario_id, nome, tipo, icone, cor, grupo_50_30_20, categoria_pai_id, ativo)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)`,
+            [userId, sub, cat.tipo, cat.icone, cat.cor, cat.grupo_50_30_20, catPaiId]
+          );
+        } else {
+          await client.query(
+            `UPDATE categoria 
+             SET grupo_50_30_20 = $1, icone = $2, cor = $3
+             WHERE id = $4`,
+            [cat.grupo_50_30_20, cat.icone, cat.cor, subExist[0].id]
           );
         }
       }

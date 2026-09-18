@@ -23,6 +23,7 @@ export const RecorrenciaFormModal: React.FC<RecorrenciaFormModalProps> = ({
   categorias,
 }) => {
   const [tipo, setTipo] = useState<'despesa' | 'receita'>('despesa');
+  const [natureza, setNatureza] = useState<'fixo' | 'variavel'>('fixo');
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [categoriaId, setCategoriaId] = useState('');
@@ -39,6 +40,7 @@ export const RecorrenciaFormModal: React.FC<RecorrenciaFormModalProps> = ({
   useEffect(() => {
     if (initialData) {
       setTipo(initialData.tipo);
+      setNatureza(initialData.natureza || 'fixo');
       setDescricao(initialData.descricao);
       setValor(String(initialData.valor));
       setCategoriaId(initialData.categoria_id);
@@ -51,6 +53,7 @@ export const RecorrenciaFormModal: React.FC<RecorrenciaFormModalProps> = ({
       setDataInicio(initialData.data_inicio.split('T')[0]);
     } else {
       setTipo('despesa');
+      setNatureza('fixo');
       setDescricao('');
       setValor('');
       setCategoriaId(categorias[0]?.id || '');
@@ -87,6 +90,7 @@ export const RecorrenciaFormModal: React.FC<RecorrenciaFormModalProps> = ({
       setLoading(true);
       const payload = {
         tipo,
+        natureza,
         descricao: descricao.trim(),
         valor: valNum,
         categoria_id: categoriaId,
@@ -138,7 +142,7 @@ export const RecorrenciaFormModal: React.FC<RecorrenciaFormModalProps> = ({
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Despesa Fixa
+            Despesa
           </button>
           <button
             type="button"
@@ -149,8 +153,42 @@ export const RecorrenciaFormModal: React.FC<RecorrenciaFormModalProps> = ({
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Receita Fixa
+            Receita
           </button>
+        </div>
+
+        {/* Natureza: Fixo vs Variável */}
+        <div className="space-y-1.5">
+          <label className="block text-xs font-medium text-slate-400">Classificação da Recorrência *</label>
+          <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setNatureza('fixo')}
+              className={`py-2 px-3 text-xs font-semibold rounded-lg transition-all text-center ${
+                natureza === 'fixo'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Fixo (Todo mês igual)
+            </button>
+            <button
+              type="button"
+              onClick={() => setNatureza('variavel')}
+              className={`py-2 px-3 text-xs font-semibold rounded-lg transition-all text-center ${
+                natureza === 'variavel'
+                  ? 'bg-amber-600 text-white shadow'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Variável (Pode variar)
+            </button>
+          </div>
+          {natureza === 'variavel' && (
+            <p className="text-[11px] text-amber-400/90 mt-1">
+              Para itens variáveis (como luz, água ou comissões), você insere a média estimada e, ao lançar no mês, confirma o valor exato.
+            </p>
+          )}
         </div>
 
         <div>
@@ -158,7 +196,7 @@ export const RecorrenciaFormModal: React.FC<RecorrenciaFormModalProps> = ({
           <input
             type="text"
             required
-            placeholder="Ex: Aluguel, Netflix, Salário, Internet..."
+            placeholder="Ex: Aluguel, Netflix, Salário, Internet, Energia..."
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
             className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -167,7 +205,9 @@ export const RecorrenciaFormModal: React.FC<RecorrenciaFormModalProps> = ({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Valor (R$) *</label>
+            <label className="block text-xs font-medium text-slate-400 mb-1">
+              {natureza === 'variavel' ? 'Valor Médio Estimado (R$) *' : 'Valor (R$) *'}
+            </label>
             <input
               type="text"
               inputMode="decimal"

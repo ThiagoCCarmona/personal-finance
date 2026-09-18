@@ -63,9 +63,9 @@ export class RecorrenciasService {
       `INSERT INTO recorrencia (
         usuario_id, tipo, descricao, valor, categoria_id, forma_pagamento,
         conta_id, cartao_id, frequencia, dia_referencia, dia_estimado_na_fatura,
-        data_inicio, data_fim, ativo
+        data_inicio, data_fim, natureza, ativo
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
         userId,
@@ -81,6 +81,7 @@ export class RecorrenciasService {
         input.dia_estimado_na_fatura || null,
         input.data_inicio,
         input.data_fim || null,
+        input.natureza || 'fixo',
         input.ativo ?? true,
       ]
     );
@@ -140,6 +141,10 @@ export class RecorrenciasService {
       fields.push(`data_fim = $${idx++}`);
       values.push(input.data_fim);
     }
+    if (input.natureza !== undefined) {
+      fields.push(`natureza = $${idx++}`);
+      values.push(input.natureza);
+    }
     if (input.ativo !== undefined) {
       fields.push(`ativo = $${idx++}`);
       values.push(input.ativo);
@@ -165,7 +170,7 @@ export class RecorrenciasService {
     return rowCount ? rowCount > 0 : false;
   }
 
-  async lancarNaCompetencia(id: string, userId: string, anoMesParam?: string) {
+  async lancarNaCompetencia(id: string, userId: string, anoMesParam?: string, valorCustomizado?: number) {
     const hoje = new Date();
     const anoMes = anoMesParam || `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
@@ -203,10 +208,14 @@ export class RecorrenciasService {
       }
     }
 
+    const valorEfetivo = (valorCustomizado !== undefined && valorCustomizado > 0) 
+      ? valorCustomizado 
+      : parseFloat(rec.valor);
+
     // Cria o lançamento via serviço para respeitar as regras financeiras e atômicas com o userId
     const novoLancamento = await lancamentosService.create(userId, {
       tipo: rec.tipo,
-      valor: parseFloat(rec.valor),
+      valor: valorEfetivo,
       data_compra: dataCompra,
       data_competencia_fatura: dataCompetenciaFatura,
       forma_pagamento: rec.forma_pagamento,

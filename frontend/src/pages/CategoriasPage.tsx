@@ -17,6 +17,7 @@ export const CategoriasPage: React.FC = () => {
   // Form states
   const [nome, setNome] = useState('');
   const [tipo, setTipo] = useState<'despesa' | 'receita'>('despesa');
+  const [grupo503020, setGrupo503020] = useState<'essencial' | 'estilo_vida' | 'investimento' | 'receita'>('essencial');
   const [cor, setCor] = useState('#3B82F6');
   const [categoriaPaiId, setCategoriaPaiId] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -44,12 +45,14 @@ export const CategoriasPage: React.FC = () => {
       setEditingCategoria(cat);
       setNome(cat.nome);
       setTipo(cat.tipo);
+      setGrupo503020(cat.grupo_50_30_20 || (cat.tipo === 'receita' ? 'receita' : 'essencial'));
       setCor(cat.cor);
       setCategoriaPaiId(cat.categoria_pai_id || '');
     } else {
       setEditingCategoria(null);
       setNome('');
       setTipo(tipoFiltro);
+      setGrupo503020(tipoFiltro === 'receita' ? 'receita' : 'essencial');
       setCor(tipoFiltro === 'despesa' ? '#EF4444' : '#10B981');
       setCategoriaPaiId(parentId || '');
     }
@@ -66,20 +69,23 @@ export const CategoriasPage: React.FC = () => {
     }
 
     try {
-      if (editingCategoria) {
-        await api.updateCategoria(editingCategoria.id, {
-          nome: nome.trim(),
-          tipo,
-          cor,
-          categoria_pai_id: categoriaPaiId || null,
-        });
+      const payload: any = {
+        nome: nome.trim(),
+        tipo,
+        cor,
+        categoria_pai_id: categoriaPaiId || null,
+      };
+
+      if (tipo === 'despesa') {
+        payload.grupo_50_30_20 = grupo503020;
       } else {
-        await api.createCategoria({
-          nome: nome.trim(),
-          tipo,
-          cor,
-          categoria_pai_id: categoriaPaiId || null,
-        });
+        payload.grupo_50_30_20 = 'receita';
+      }
+
+      if (editingCategoria) {
+        await api.updateCategoria(editingCategoria.id, payload);
+      } else {
+        await api.createCategoria(payload);
       }
 
       setIsModalOpen(false);
@@ -101,12 +107,25 @@ export const CategoriasPage: React.FC = () => {
 
   const categoriasFiltradas = treeCategorias.filter(c => c.tipo === tipoFiltro);
 
+  const getBadgeGrupo = (grupo?: string) => {
+    if (grupo === 'essencial') {
+      return <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold">50% Essencial</span>;
+    }
+    if (grupo === 'estilo_vida') {
+      return <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-semibold">30% Estilo de Vida</span>;
+    }
+    if (grupo === 'investimento') {
+      return <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">20% Investimento</span>;
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-100">Categorias & Subcategorias</h1>
-          <p className="text-sm text-slate-400">Classificação para despesas e receitas nos relatórios</p>
+          <p className="text-sm text-slate-400">Classificação para despesas e receitas nos relatórios e regra 50-30-20</p>
         </div>
 
         <button
@@ -161,7 +180,10 @@ export const CategoriasPage: React.FC = () => {
                     <Tag size={18} />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-slate-100">{cat.nome}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-slate-100">{cat.nome}</h3>
+                      {cat.tipo === 'despesa' && getBadgeGrupo(cat.grupo_50_30_20)}
+                    </div>
                     <span className="text-xs text-slate-400">
                       {cat.subcategorias?.length || 0} subcategorias vinculadas
                     </span>
@@ -279,6 +301,23 @@ export const CategoriasPage: React.FC = () => {
                 ))}
             </select>
           </div>
+
+          {tipo === 'despesa' && !categoriaPaiId && (
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">
+                Classificação na Regra 50-30-20 *
+              </label>
+              <select
+                value={grupo503020}
+                onChange={(e) => setGrupo503020(e.target.value as any)}
+                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="essencial">50% - Gastos Essenciais (Moradia, Alimentação, Saúde, Contas)</option>
+                <option value="estilo_vida">30% - Estilo de Vida & Lazer (Restaurantes, Assinaturas, Viagens)</option>
+                <option value="investimento">20% - Metas & Investimentos (Reserva, Aportes, Dívidas)</option>
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1">Cor</label>
