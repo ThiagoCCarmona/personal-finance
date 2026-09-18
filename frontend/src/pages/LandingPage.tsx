@@ -12,7 +12,11 @@ import { useAuth } from '../contexts/AuthContext.js';
 import { LandingNavbar } from '../components/landing/LandingNavbar.js';
 import { Hero3DCanvas } from '../components/landing/Hero3DCanvas.js';
 import { AppMockupPreview } from '../components/landing/AppMockupPreview.js';
+import { Methodology503020Section } from '../components/landing/Methodology503020Section.js';
+import { PredictabilitySection } from '../components/landing/PredictabilitySection.js';
 import { BorderTravelerSection } from '../components/landing/BorderTravelerSection.js';
+import { ComparisonTableSection } from '../components/landing/ComparisonTableSection.js';
+import { ContinuousEvolutionSection } from '../components/landing/ContinuousEvolutionSection.js';
 import { SecuritySection } from '../components/landing/SecuritySection.js';
 import { PricingSection } from '../components/landing/PricingSection.js';
 import { FaqSection } from '../components/landing/FaqSection.js';
@@ -25,14 +29,14 @@ export const LandingPage: React.FC = () => {
 
   const handleOpenDemo = async () => {
     if (user) {
-      navigate('/');
+      navigate('/dashboard');
       return;
     }
 
     try {
       setLoadingDemo(true);
       await login('admin', 'admin123');
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       console.warn('Login direto na demo indisponível, redirecionando para a página de login:', err);
       navigate('/login?demo=true');
@@ -50,9 +54,9 @@ export const LandingPage: React.FC = () => {
       <LandingNavbar onOpenDemo={handleOpenDemo} loadingDemo={loadingDemo} />
 
       {/* ========================================================================= */}
-      {/* HERO SECTION COM THREE.JS INTERATIVO */}
+      {/* HERO SECTION COM THREE.JS INTERATIVO & NOVA PROPOSTA DE VALOR */}
       {/* ========================================================================= */}
-      <section className="relative pt-32 pb-20 lg:pt-40 lg:pb-32 overflow-hidden flex flex-col items-center justify-center min-h-[90vh]">
+      <section className="relative pt-32 pb-20 lg:pt-36 lg:pb-28 overflow-hidden flex flex-col items-center justify-center min-h-[90vh]">
         
         {/* Three.js 3D Interactive Canvas ao fundo */}
         <Hero3DCanvas />
@@ -60,30 +64,31 @@ export const LandingPage: React.FC = () => {
         {/* Gradientes e Luzes de Fundo */}
         <div className="absolute top-20 left-1/2 -translate-x-1/2 w-full max-w-4xl h-96 bg-gradient-to-tr from-emerald-600/20 via-teal-500/10 to-transparent blur-[140px] pointer-events-none rounded-full" />
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 space-y-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 space-y-7">
           
-          {/* Top Pill / Badge */}
+          {/* Top Pill / Badge de Evolução Contínua */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/90 border border-emerald-500/30 text-emerald-400 text-xs sm:text-sm font-semibold shadow-lg shadow-emerald-950/40 backdrop-blur-md"
           >
-            <Sparkles size={16} className="text-emerald-400 animate-pulse" />
-            <span>Multimoedas • Tríplice Fronteira • Câmbio PTAX Oficial BACEN</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>Sistema em Evolução Contínua • Versão 2.4 Ativa • Atualizações Semanais</span>
           </motion.div>
 
-          {/* Main Hero Heading */}
+          {/* Main Headline de Impacto */}
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-4xl sm:text-6xl lg:text-7xl font-black text-white tracking-tight leading-[1.1] max-w-5xl mx-auto"
+            className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.15] max-w-5xl mx-auto"
           >
-            O Sistema Financeiro Definitivo para quem vive na{' '}
+            Tenha clareza total do seu dinheiro:{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
-              Fronteira & Viagens
-            </span>
+              saiba exatamente quanto pode gastar no mês
+            </span>{' '}
+            sem estourar o orçamento e quanto vai sobrar no mês que vem.
           </motion.h1>
 
           {/* Subtitle */}
@@ -91,9 +96,9 @@ export const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-base sm:text-xl text-slate-300 max-w-3xl mx-auto font-normal leading-relaxed"
+            className="text-base sm:text-lg text-slate-300 max-w-3xl mx-auto font-normal leading-relaxed"
           >
-            Diga adeus ao caos entre <strong>Real, Dólar e Peso Argentino</strong>. Acompanhe a cotação oficial do Banco Central, divida contas de jantares e passeios em 1 toque, liquide empréstimos via <strong>PIX BR Code</strong> e blinde seus dados com isolamento patrimonial estrito.
+            A metodologia <strong>50-30-20 automatizada</strong> com teto seguro diário, cotação oficial PTAX do Banco Central para compras na fronteira ou viagens, divisão de contas sem atrito e <strong>blindagem anti-fintech (zero anúncios e zero venda de dados)</strong>.
           </motion.p>
 
           {/* Action CTA Buttons */}
@@ -101,7 +106,7 @@ export const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
+            className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-3"
           >
             <button
               onClick={handleOpenDemo}
@@ -109,7 +114,7 @@ export const LandingPage: React.FC = () => {
               className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold text-sm sm:text-base text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400 hover:scale-[1.03] active:scale-[0.98] shadow-xl shadow-emerald-500/25 transition-all flex items-center justify-center space-x-3 disabled:opacity-50"
             >
               <Sparkles size={18} className="fill-slate-950" />
-              <span>{loadingDemo ? 'Carregando Demonstração...' : 'Testar Demonstração ao Vivo'}</span>
+              <span>{loadingDemo ? 'Abrindo Demonstração...' : 'Experimentar Demonstração Grátis (Sem Cadastro)'}</span>
               <ArrowRight size={18} />
             </button>
 
@@ -129,11 +134,15 @@ export const LandingPage: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.45 }}
-            className="pt-8 flex flex-wrap items-center justify-center gap-6 sm:gap-10 text-xs sm:text-sm text-slate-400"
+            className="pt-6 flex flex-wrap items-center justify-center gap-6 sm:gap-8 text-xs sm:text-sm text-slate-400"
           >
             <div className="flex items-center gap-2">
               <CheckCircle2 size={16} className="text-emerald-400" />
-              <span>Demo com <strong>+R$ 380.000</strong> simulados</span>
+              <span>Entrada em 1 clique (+R$ 380k simulados)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-emerald-400" />
+              <span>Metodologia 50-30-20 automatizada</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 size={16} className="text-emerald-400" />
@@ -141,11 +150,7 @@ export const LandingPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 size={16} className="text-emerald-400" />
-              <span>PWA no celular sem lojas de app</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-emerald-400" />
-              <span>Modo Privacidade 1 clique</span>
+              <span>Modo Privacidade instantâneo</span>
             </div>
           </motion.div>
 
@@ -158,9 +163,29 @@ export const LandingPage: React.FC = () => {
       <AppMockupPreview onOpenDemo={handleOpenDemo} loadingDemo={loadingDemo} />
 
       {/* ========================================================================= */}
+      {/* METODOLOGIA 50-30-20 AUTOMATIZADA COM TETO DIÁRIO SEGURO */}
+      {/* ========================================================================= */}
+      <Methodology503020Section />
+
+      {/* ========================================================================= */}
+      {/* PREVISIBILIDADE DO PRÓXIMO MÊS & SIMULADOR COM TABELA PRICE */}
+      {/* ========================================================================= */}
+      <PredictabilitySection />
+
+      {/* ========================================================================= */}
       {/* DIFERENCIAIS DE FRONTEIRA E VIAGENS */}
       {/* ========================================================================= */}
       <BorderTravelerSection />
+
+      {/* ========================================================================= */}
+      {/* TABELA COMPARATIVA DIRETA: PLATAFORMA VS EXCEL VS APPS TRADICIONAIS */}
+      {/* ========================================================================= */}
+      <ComparisonTableSection />
+
+      {/* ========================================================================= */}
+      {/* EVOLUÇÃO CONTÍNUA & ROADMAP ATIVO */}
+      {/* ========================================================================= */}
+      <ContinuousEvolutionSection />
 
       {/* ========================================================================= */}
       {/* SEGURANÇA E SOBERANIA DOS DADOS */}
@@ -168,7 +193,7 @@ export const LandingPage: React.FC = () => {
       <SecuritySection />
 
       {/* ========================================================================= */}
-      {/* PLANOS SAAS RECORRENTE & VITALÍCIO */}
+      {/* PLANOS B2C & SOLUÇÕES B2B (WHITE-LABEL E CORPORATIVO SEM PREÇOS) */}
       {/* ========================================================================= */}
       <PricingSection />
 
@@ -188,15 +213,17 @@ export const LandingPage: React.FC = () => {
             </div>
             <div>
               <div className="font-bold text-slate-300">FinanSmart Pro</div>
-              <div>Gestão Financeira Pessoal, Patrimonial & Multimoedas</div>
+              <div>Gestão Orçamentária 50-30-20, Patrimonial & Multimoedas</div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-6">
-            <a href="#diferenciais" className="hover:text-emerald-400 transition-colors">Diferenciais</a>
+            <a href="#metodologia" className="hover:text-emerald-400 transition-colors">50-30-20</a>
+            <a href="#previsibilidade" className="hover:text-emerald-400 transition-colors">Previsibilidade</a>
+            <a href="#comparativo" className="hover:text-emerald-400 transition-colors">Comparativo</a>
             <a href="#fronteira" className="hover:text-emerald-400 transition-colors">Fronteira</a>
-            <a href="#planos" className="hover:text-emerald-400 transition-colors">Planos SaaS</a>
-            <a href="#seguranca" className="hover:text-emerald-400 transition-colors">Segurança</a>
+            <a href="#evolucao" className="hover:text-emerald-400 transition-colors">Evolução</a>
+            <a href="#planos" className="hover:text-emerald-400 transition-colors">Planos</a>
             <Link to="/login" className="hover:text-emerald-400 transition-colors font-semibold">Área do Cliente</Link>
           </div>
 

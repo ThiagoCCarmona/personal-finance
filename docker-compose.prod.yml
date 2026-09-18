@@ -32,10 +32,10 @@ services:
       - proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.financeiro.rule=Host(`finan.tccodes.com.br`)"
-      - "traefik.http.routers.financeiro.entrypoints=websecure"
-      - "traefik.http.routers.financeiro.tls.certresolver=myresolver"
-      - "traefik.http.services.financeiro.loadbalancer.server.port=3001"
+      - "traefik.http.routers.finansmart.rule=Host(`finansmart.tccodes.com.br`)"
+      - "traefik.http.routers.finansmart.entrypoints=websecure"
+      - "traefik.http.routers.finansmart.tls.certresolver=myresolver"
+      - "traefik.http.services.finansmart.loadbalancer.server.port=3001"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health || exit 1"]
       interval: 10s
