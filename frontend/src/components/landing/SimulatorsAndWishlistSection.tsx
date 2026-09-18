@@ -4,11 +4,15 @@ import {
   TrendingUp, 
   Heart, 
   Sparkles, 
-  CheckCircle2, 
   CreditCard, 
   Store, 
   History, 
-  Zap 
+  Zap,
+  Wallet,
+  Calendar,
+  AlertTriangle,
+  Percent,
+  ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -23,31 +27,54 @@ import {
 export const SimulatorsAndWishlistSection: React.FC = () => {
   const [activeFeature, setActiveFeature] = useState<'gastos' | 'juros' | 'wishlist'>('gastos');
 
-  // --- Estados do Simulador de Gastos ---
-  const [gastoValor, setGastoValor] = useState(2400);
-  const [gastoForma, setGastoForma] = useState<'a_vista' | 'parcelado'>('parcelado');
-  const [gastoParcelas, setGastoParcelas] = useState(6);
-  const [gastoTaxa] = useState(2.2); // % a.m.
-  const [gastoComJuros, setGastoComJuros] = useState(true);
+  // --- Estados do Simulador de Gastos (IDÊNTICO À PÁGINA DE PRODUÇÃO) ---
+  const [formDescricao, setFormDescricao] = useState('Notebook ou Viagem');
+  const [formValor, setFormValor] = useState('1200');
+  const [formMoeda, setFormMoeda] = useState('BRL');
+  const [formDataPrevista, setFormDataPrevista] = useState('18/09/2026');
+  const [formFormaPagamento, setFormFormaPagamento] = useState<'a_vista' | 'cartao_parcelado'>('a_vista');
+  const [formContaOrigem, setFormContaOrigem] = useState('unificado');
+  const [formCartao, setFormCartao] = useState('inter');
+  const [formNumParcelas, setFormNumParcelas] = useState(6);
+  const [formComJuros, setFormComJuros] = useState(false);
+  const [formTaxaJuros, setFormTaxaJuros] = useState('2.5');
+  const [formTipoJuros, setFormTipoJuros] = useState<'price' | 'simples'>('price');
 
-  // Cálculos do simulador de gastos
-  const saldoAtualSimulado = 12450.00;
-  const saldoProjetadoBase = 8900.00;
+  // Valores base simulados
+  const saldoUnificadoBase = 4212.81;
+  const saldoProjetadoBase = 5820.40;
+  const limiteCartaoBase = 2900.00;
 
-  const taxaMensalGasto = gastoComJuros ? gastoTaxa / 100 : 0;
-  const parcelaGasto = gastoForma === 'a_vista' 
-    ? gastoValor 
-    : (taxaMensalGasto > 0 
-        ? (gastoValor * (taxaMensalGasto * Math.pow(1 + taxaMensalGasto, gastoParcelas))) / (Math.pow(1 + taxaMensalGasto, gastoParcelas) - 1)
-        : gastoValor / gastoParcelas);
-  
-  const totalPagoGasto = gastoForma === 'a_vista' ? gastoValor : parcelaGasto * gastoParcelas;
-  const jurosPagosGasto = Math.max(0, totalPagoGasto - gastoValor);
+  // Cálculos matemáticos de simulação em tempo real
+  const cotacaoUtilizada = formMoeda === 'USD' ? 5.6840 : formMoeda === 'EUR' ? 6.2190 : 1;
+  const valorOriginalNum = Math.max(0, parseFloat(formValor) || 0);
+  const valorBrlTotal = valorOriginalNum * cotacaoUtilizada;
 
-  const saldoAposGastoHoje = gastoForma === 'a_vista' ? saldoAtualSimulado - gastoValor : saldoAtualSimulado;
-  const saldoProjetadoComGasto = gastoForma === 'a_vista' 
-    ? saldoProjetadoBase - gastoValor 
-    : saldoProjetadoBase - parcelaGasto;
+  // Cálculo de parcelamento e juros
+  const taxaJurosMensalDecimal = formComJuros ? (parseFloat(formTaxaJuros) || 0) / 100 : 0;
+  let valorParcelaBrl = valorBrlTotal / formNumParcelas;
+  let valorFinalComJurosBrl = valorBrlTotal;
+
+  if (formFormaPagamento === 'cartao_parcelado' && formComJuros && taxaJurosMensalDecimal > 0) {
+    if (formTipoJuros === 'price') {
+      valorParcelaBrl = (valorBrlTotal * (taxaJurosMensalDecimal * Math.pow(1 + taxaJurosMensalDecimal, formNumParcelas))) / 
+        (Math.pow(1 + taxaJurosMensalDecimal, formNumParcelas) - 1);
+      valorFinalComJurosBrl = valorParcelaBrl * formNumParcelas;
+    } else {
+      // Juros simples
+      valorFinalComJurosBrl = valorBrlTotal * (1 + taxaJurosMensalDecimal * formNumParcelas);
+      valorParcelaBrl = valorFinalComJurosBrl / formNumParcelas;
+    }
+  }
+
+  const totalJurosBrl = Math.max(0, valorFinalComJurosBrl - valorBrlTotal);
+  const percentualJuros = valorBrlTotal > 0 ? (totalJurosBrl / valorBrlTotal) * 100 : 0;
+
+  // Impactos nos saldos
+  const saldoAposCompraHoje = formFormaPagamento === 'a_vista' ? saldoUnificadoBase - valorBrlTotal : saldoUnificadoBase;
+  const impactoProximoMes = formFormaPagamento === 'a_vista' ? valorBrlTotal : valorParcelaBrl;
+  const saldoProjetadoFinal = saldoProjetadoBase - impactoProximoMes;
+  const limiteDisponivelAposCompra = limiteCartaoBase - valorBrlTotal;
 
   // --- Estados do Simulador de Juros Compostos ---
   const [jurosInicial, setJurosInicial] = useState(15000);
@@ -186,7 +213,7 @@ export const SimulatorsAndWishlistSection: React.FC = () => {
           <AnimatePresence mode="wait">
             
             {/* ========================================================================= */}
-            {/* FEATURE 1: SIMULADOR DE GASTOS & IMPACTO NO SALDO FUTURO */}
+            {/* FEATURE 1: SIMULADOR DE GASTOS & IMPACTO FUTURO (IDÊNTICO À PRODUÇÃO) */}
             {/* ========================================================================= */}
             {activeFeature === 'gastos' && (
               <motion.div
@@ -195,151 +222,381 @@ export const SimulatorsAndWishlistSection: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
                 transition={{ duration: 0.3 }}
-                className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch"
+                className="space-y-6"
               >
-                {/* Controles da Simulação */}
-                <div className="lg:col-span-6 space-y-6">
-                  <div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-semibold mb-2">
-                      <ShoppingCart size={14} />
-                      <span>Antecipação de Caixa</span>
-                    </div>
-                    <h3 className="text-xl sm:text-2xl font-bold text-white">
-                      O que acontece se eu comprar isso hoje?
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                      O sistema analisa seu saldo em conta e suas faturas futuras para dizer se você pode comprar sem comprometer as reservas.
-                    </p>
-                  </div>
+                {/* Header idêntico ao de produção */}
+                <div className="border-b border-slate-800 pb-4">
+                  <h3 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                    <ShoppingCart className="w-6 h-6 text-emerald-400" />
+                    <span>Simulador de Gastos & Impacto Futuro</span>
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                    Simule compras à vista ou parceladas com juros e veja o impacto imediato no seu saldo atual e no saldo do mês que vem.
+                  </p>
+                </div>
 
-                  {/* Parâmetros */}
-                  <div className="space-y-4 bg-slate-950/80 p-5 rounded-2xl border border-slate-800">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  
+                  {/* Formulário - Coluna da Esquerda (Idêntico ao print 1 e 2) */}
+                  <div className="lg:col-span-5 bg-slate-900/90 p-5 rounded-2xl border border-slate-800 shadow-md space-y-4">
+                    <h4 className="text-sm font-semibold text-slate-100 flex items-center gap-2 border-b border-slate-800 pb-2">
+                      Parâmetros da Compra
+                    </h4>
+
+                    <div className="space-y-3.5 text-xs">
+                      {/* O QUE VOCÊ PLANEJA COMPRAR? */}
                       <div>
-                        <label className="text-xs font-medium text-slate-400 block mb-1">
-                          Valor da Compra (R$)
+                        <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                          O que você planeja comprar? *
                         </label>
-                        <div className="flex items-center px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white font-bold">
-                          <span className="text-slate-500 text-xs mr-1">R$</span>
+                        <input
+                          type="text"
+                          value={formDescricao}
+                          onChange={e => setFormDescricao(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 focus:ring-2 focus:ring-emerald-500 outline-none"
+                          placeholder="Notebook ou Viagem"
+                        />
+                      </div>
+
+                      {/* VALOR * | MOEDA */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="col-span-2">
+                          <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                            Valor *
+                          </label>
                           <input
                             type="number"
-                            value={gastoValor}
-                            onChange={(e) => setGastoValor(Math.max(50, Number(e.target.value)))}
-                            className="w-full bg-transparent outline-none text-sm font-bold text-white"
+                            step="0.01"
+                            value={formValor}
+                            onChange={e => setFormValor(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
                           />
                         </div>
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-medium text-slate-400 block mb-1">
-                          Forma de Pagamento
-                        </label>
-                        <select
-                          value={gastoForma}
-                          onChange={(e) => setGastoForma(e.target.value as any)}
-                          className="w-full px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm font-semibold text-white outline-none cursor-pointer"
-                        >
-                          <option value="parcelado">Cartão de Crédito Parcelado</option>
-                          <option value="a_vista">À Vista (PIX / Conta Corrente)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {gastoForma === 'parcelado' && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80">
                         <div>
-                          <label className="text-xs font-medium text-slate-400 block mb-1">
-                            Número de Parcelas
+                          <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                            Moeda
                           </label>
                           <select
-                            value={gastoParcelas}
-                            onChange={(e) => setGastoParcelas(Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white outline-none cursor-pointer"
+                            value={formMoeda}
+                            onChange={e => setFormMoeda(e.target.value)}
+                            className="w-full px-2.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 font-semibold focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
                           >
-                            {[2, 3, 4, 5, 6, 8, 10, 12, 18, 24].map(n => (
-                              <option key={n} value={n}>{n}x de R$ {Math.round(gastoValor / n).toLocaleString('pt-BR')}</option>
-                            ))}
+                            <option value="BRL">BRL (R$)</option>
+                            <option value="USD">USD ($)</option>
+                            <option value="EUR">EUR (€)</option>
                           </select>
                         </div>
+                      </div>
 
+                      {/* DATA PREVISTA DA COMPRA */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                          Data Prevista da Compra
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={formDataPrevista}
+                            onChange={e => setFormDataPrevista(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                          <Calendar size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                        </div>
+                      </div>
+
+                      {/* FORMA DE PAGAMENTO */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1.5">
+                          Forma de Pagamento
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setFormFormaPagamento('a_vista')}
+                            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
+                              formFormaPagamento === 'a_vista'
+                                ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400 shadow-sm'
+                                : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            <Wallet className="w-3.5 h-3.5" />
+                            <span>À Vista</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setFormFormaPagamento('cartao_parcelado')}
+                            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
+                              formFormaPagamento === 'cartao_parcelado'
+                                ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400 shadow-sm'
+                                : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            <span>Cartão Parcelado</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* CONDICIONAL: SE À VISTA -> ORIGEM DO PAGAMENTO */}
+                      {formFormaPagamento === 'a_vista' ? (
                         <div>
-                          <label className="text-xs font-medium text-slate-400 block mb-1">
-                            Possui Juros do Emissor?
+                          <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                            Origem do Pagamento
                           </label>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setGastoComJuros(!gastoComJuros)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                                gastoComJuros 
-                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' 
-                                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                              }`}
+                          <select
+                            value={formContaOrigem}
+                            onChange={e => setFormContaOrigem(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-950 border border-emerald-500/60 rounded-xl text-xs text-slate-100 focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
+                          >
+                            <option value="unificado">🌐 Saldo Unificado (Todas as Contas — R$ 4212.81)</option>
+                            <option value="itau">Itaú Personnalité (Saldo: R$ 2850.00)</option>
+                            <option value="btg">BTG Pactual (Saldo: R$ 1362.81)</option>
+                          </select>
+                        </div>
+                      ) : (
+                        /* CONDICIONAL: SE CARTÃO PARCELADO (Conforme Print 2) */
+                        <div className="space-y-3 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                              Cartão de Crédito
+                            </label>
+                            <select
+                              value={formCartao}
+                              onChange={e => setFormCartao(e.target.value)}
+                              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
                             >
-                              {gastoComJuros ? 'Sim (Com Juros)' : 'Sem Juros'}
-                            </button>
-                            {gastoComJuros && (
-                              <span className="text-xs text-slate-400">{gastoTaxa}% a.m.</span>
+                              <option value="inter">Cartão de Crédito Inter (Limite: R$ 2900.00)</option>
+                              <option value="master">Mastercard Black (Limite: R$ 35000.00)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                              Número de Parcelas
+                            </label>
+                            <select
+                              value={formNumParcelas}
+                              onChange={e => setFormNumParcelas(parseInt(e.target.value, 10))}
+                              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer font-bold"
+                            >
+                              {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18, 24].map(n => (
+                                <option key={n} value={n}>{n}x</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* SIMULAR COM JUROS NO PARCELAMENTO (Estilo Print 2) */}
+                          <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <label htmlFor="chkComJurosPrint" className="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-1.5">
+                                <Percent size={13} className="text-amber-400" />
+                                <span>Simular com Juros no Parcelamento</span>
+                              </label>
+                              <input
+                                type="checkbox"
+                                id="chkComJurosPrint"
+                                checked={formComJuros}
+                                onChange={e => setFormComJuros(e.target.checked)}
+                                className="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                              />
+                            </div>
+
+                            {formComJuros && (
+                              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+                                <div>
+                                  <label className="block text-[10px] text-slate-400 mb-1">Taxa Mensal (% a.m.)</label>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    value={formTaxaJuros}
+                                    onChange={e => setFormTaxaJuros(e.target.value)}
+                                    className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-100 font-bold outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] text-slate-400 mb-1">Amortização</label>
+                                  <select
+                                    value={formTipoJuros}
+                                    onChange={e => setFormTipoJuros(e.target.value as any)}
+                                    className="w-full px-2 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-[11px] text-slate-100 font-semibold outline-none cursor-pointer"
+                                  >
+                                    <option value="price">Tabela Price</option>
+                                    <option value="simples">Juros Simples</option>
+                                  </select>
+                                </div>
+                              </div>
                             )}
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+
+                      {/* BOTÃO SIMULAR IMPACTO -> */}
+                      <button
+                        type="button"
+                        className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all text-xs sm:text-sm mt-2"
+                      >
+                        <span>Simular Impacto</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Painel de Impacto Imediato */}
-                <div className="lg:col-span-6 bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-6">
-                  <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                        Diagnóstico do Impacto Financeiro
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold">
-                        Margem Positiva
-                      </span>
-                    </div>
-
-                    {/* Cards de Comparativo Antes e Depois */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-5">
-                      <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-                        <span className="text-xs text-slate-400 block">Saldo em Conta Hoje</span>
-                        <div className="text-xl font-bold text-white mt-1">
-                          R$ {saldoAposGastoHoje.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </div>
-                        <span className="text-[11px] text-slate-500">
-                          {gastoForma === 'a_vista' ? `Redução de R$ ${gastoValor}` : 'Preservado (parcelado no cartão)'}
+                  {/* Painel de Resultados - Coluna da Direita (Idêntico aos cards de produção) */}
+                  <div className="lg:col-span-7 space-y-4">
+                    
+                    {/* Card 1: Custo Total Projetado */}
+                    <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-800 shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                          Custo Total Projetado
                         </span>
-                      </div>
-
-                      <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-                        <span className="text-xs text-slate-400 block">Saldo no Mês Que Vem</span>
-                        <div className={`text-xl font-bold mt-1 ${saldoProjetadoComGasto >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          R$ {saldoProjetadoComGasto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </div>
-                        <span className="text-[11px] text-slate-500">
-                          {gastoForma === 'parcelado' ? `Absorve parcela de R$ ${Math.round(parcelaGasto)}` : 'Já debitado à vista'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Alerta de Inteligência */}
-                    <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs text-emerald-300 flex items-start gap-3">
-                      <CheckCircle2 size={18} className="text-emerald-400 shrink-0 mt-0.5" />
-                      <div>
-                        <strong>Compra Aprovada pelo seu Orçamento:</strong> Seu saldo do mês que vem continuará positivo com folga suficiente para cobrir despesas fixas. 
-                        {gastoComJuros && jurosPagosGasto > 0 && (
-                          <span className="block mt-1 text-amber-300">
-                            Atenção: Você pagará R$ {Math.round(jurosPagosGasto)} em juros. Se tiver reserva em CDI, considere pagar à vista!
+                        {formComJuros && totalJurosBrl > 0 && (
+                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">
+                            +{percentualJuros.toFixed(1)}% de juros
                           </span>
                         )}
                       </div>
-                    </div>
-                  </div>
 
-                  <div className="pt-4 border-t border-slate-900 text-xs text-slate-500 flex items-center justify-between">
-                    <span>Recurso exclusivo nativo do FinanSmart Pro</span>
-                    <span className="text-emerald-400 font-semibold">Zero Surpresas na Fatura</span>
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <span className="text-3xl font-black text-slate-100">
+                          R$ {valorFinalComJurosBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        {formMoeda !== 'BRL' && (
+                          <span className="text-xs text-slate-400">
+                            ({formMoeda} {valorOriginalNum.toFixed(2)} @ R$ {cotacaoUtilizada.toFixed(4)})
+                          </span>
+                        )}
+                      </div>
+
+                      {formFormaPagamento === 'cartao_parcelado' && (
+                        <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div className="font-semibold text-emerald-400">
+                            {formNumParcelas}x de R$ {valorParcelaBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                          {formComJuros && totalJurosBrl > 0 ? (
+                            <div className="text-slate-400">
+                              Total em juros: <span className="text-amber-400 font-semibold">R$ {totalJurosBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span> (À vista: R$ {valorBrlTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card 2: Previsão de Saldo no Mês Que Vem */}
+                    <div className="p-5 bg-gradient-to-r from-emerald-950/30 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-2xl shadow-sm space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="text-emerald-400" size={17} />
+                        <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                          Previsão de Saldo no Mês Que Vem
+                        </h4>
+                      </div>
+
+                      <p className="text-[11px] text-slate-400">
+                        Projeção considerando saldo em conta, receitas fixas recorrentes e as faturas/despesas previstas.
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                        <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl text-xs">
+                          <span className="text-[10px] text-slate-400 block">Saldo Sem Esta Compra</span>
+                          <div className="text-sm font-bold text-slate-200 mt-0.5">
+                            R$ {saldoProjetadoBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </div>
+                          <span className="text-[10px] text-slate-500">
+                            (+) Recorrências: R$ 3.450,00
+                          </span>
+                        </div>
+
+                        <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl text-xs">
+                          <span className="text-[10px] text-slate-400 block">Impacto no Mês Que Vem</span>
+                          <div className="text-sm font-bold text-rose-400 mt-0.5">
+                            - R$ {impactoProximoMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </div>
+                          <span className="text-[10px] text-slate-500">
+                            {formFormaPagamento === 'a_vista' ? 'Debitado do saldo' : 'Parcela na fatura'}
+                          </span>
+                        </div>
+
+                        <div className={`p-3 rounded-xl border text-xs ${
+                          saldoProjetadoFinal < 0
+                            ? 'bg-rose-950/40 border-rose-800 text-rose-300'
+                            : 'bg-emerald-950/40 border-emerald-800 text-emerald-300'
+                        }`}>
+                          <span className="text-[10px] block font-semibold">Saldo Final Estimado</span>
+                          <div className="text-sm font-black mt-0.5">
+                            R$ {saldoProjetadoFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </div>
+                          <span className="text-[10px] opacity-80">No próximo mês</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Impacto Imediato no Saldo (se à vista) OU Limite de Cartão (se parcelado) */}
+                    {formFormaPagamento === 'a_vista' ? (
+                      <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-800 shadow-sm space-y-3">
+                        <h4 className="text-xs font-semibold text-slate-100 flex items-center gap-2">
+                          <Wallet className="w-4 h-4 text-emerald-500" />
+                          <span>Impacto Imediato no Saldo: Saldo Unificado (Todas as Contas)</span>
+                        </h4>
+
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                            <span className="text-slate-400">Saldo Atual</span>
+                            <div className="text-base font-bold text-slate-100 mt-0.5">
+                              R$ {saldoUnificadoBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                          </div>
+
+                          <div className={`p-3 rounded-xl border ${
+                            saldoAposCompraHoje < 0 
+                              ? 'bg-rose-950/40 border-rose-800 text-rose-300' 
+                              : 'bg-emerald-950/40 border-emerald-800 text-emerald-300'
+                          }`}>
+                            <span className="font-semibold">Saldo Após a Compra</span>
+                            <div className="text-base font-bold mt-0.5">
+                              R$ {saldoAposCompraHoje.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {saldoAposCompraHoje < 0 && (
+                          <div className="flex items-center gap-2 text-xs text-rose-400 font-medium pt-1">
+                            <AlertTriangle className="w-4 h-4 shrink-0" />
+                            <span>Atenção: essa compra deixará a conta no vermelho / cheque especial!</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-800 shadow-sm space-y-3">
+                        <h4 className="text-xs font-semibold text-slate-100 flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-emerald-500" />
+                          <span>Projeção de Faturas: Cartão de Crédito Inter</span>
+                        </h4>
+
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                            <span className="text-slate-400">Limite Disponível Atual:</span>
+                            <div className="font-bold text-slate-100 mt-0.5 text-sm">
+                              R$ {limiteCartaoBase.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                          </div>
+
+                          <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                            <span className="text-slate-400">Limite Restante após Compra:</span>
+                            <div className={`font-bold mt-0.5 text-sm ${limiteDisponivelAposCompra < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                              R$ {limiteDisponivelAposCompra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                          <span>Fatura Atual Estimada: R$ 420,00</span>
+                          <span className="text-emerald-400 font-bold">+ Parcela: R$ {valorParcelaBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-white font-bold">Fatura Projetada: R$ {(420 + valorParcelaBrl).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                    )}
+
                   </div>
                 </div>
               </motion.div>
