@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, User as UserIcon, Wallet2, LogIn, Sparkles, ArrowLeft, MessageCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.js';
 
@@ -13,23 +13,27 @@ export const LoginPage: React.FC = () => {
   const { login, setupRequired } = useAuth();
   const navigate = useNavigate();
 
+  const hostname = window.location.hostname.toLowerCase();
+  const isFinansmart = hostname.includes('finansmart');
+  const isProductionFinan = hostname.includes('finan.tccodes') && !isFinansmart;
+
   useEffect(() => {
     if (setupRequired) {
       navigate('/setup');
     }
   }, [setupRequired, navigate]);
 
-  // Preenche credenciais da demo se vier via query param ?demo=true
+  // Preenche credenciais da demo se vier via query param ?demo=true ou se estiver no domínio finansmart
   useEffect(() => {
-    if (searchParams.get('demo') === 'true') {
-      setLoginStr('admin');
-      setSenha('admin123');
+    if (searchParams.get('demo') === 'true' || isFinansmart) {
+      setLoginStr('teste');
+      setSenha('teste123');
     }
-  }, [searchParams]);
+  }, [searchParams, isFinansmart]);
 
   const handlePreencherDemo = () => {
-    setLoginStr('admin');
-    setSenha('admin123');
+    setLoginStr('teste');
+    setSenha('teste123');
     setError(null);
   };
 
@@ -51,15 +55,25 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-950">
       
-      {/* Botão de Retorno para a Landing Page */}
-      <div className="w-full max-w-md mb-4">
-        <Link
-          to="/landing"
-          className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-emerald-400 transition-colors"
-        >
-          <ArrowLeft size={16} />
-          <span>Voltar para a Apresentação do Sistema</span>
-        </Link>
+      {/* Botão de Retorno para a Apresentação ou Landing Page */}
+      <div className="w-full max-w-md mb-4 flex justify-between items-center">
+        {isProductionFinan ? (
+          <a
+            href="https://finansmart.tccodes.com.br"
+            className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-emerald-400 transition-colors"
+          >
+            <ArrowLeft size={16} />
+            <span>Conhecer o FinanSmart / Apresentação de Vendas</span>
+          </a>
+        ) : (
+          <a
+            href="/"
+            className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-emerald-400 transition-colors"
+          >
+            <ArrowLeft size={16} />
+            <span>Voltar para a Apresentação do Sistema</span>
+          </a>
+        )}
       </div>
 
       <div className="w-full max-w-md p-8 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl space-y-6 animate-scaleUp">
@@ -69,12 +83,30 @@ export const LoginPage: React.FC = () => {
             <Wallet2 size={32} />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-100">
-            Acesso ao Sistema
+            {isFinansmart ? 'Acesso à Demonstração' : 'Acesso ao Sistema'}
           </h1>
           <p className="text-sm text-slate-400">
-            Entre com suas credenciais ou explore a demonstração
+            {isFinansmart 
+              ? 'Ambiente vitrine para testes públicos (usuário teste)' 
+              : 'Entre com suas credenciais de assinante ou administrador'}
           </p>
         </div>
+
+        {/* Banner de Direcionamento caso esteja no FinanSmart */}
+        {isFinansmart ? (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-200 flex flex-col gap-1.5">
+            <span className="font-semibold text-white">Já é cliente ou possui conta real?</span>
+            <span>
+              O site <strong>finansmart</strong> é exclusivo para demonstração. Para acessar sua conta individual, acesse:{' '}
+              <a 
+                href="https://finan.tccodes.com.br/login" 
+                className="font-bold underline text-amber-300 hover:text-white"
+              >
+                finan.tccodes.com.br
+              </a>
+            </span>
+          </div>
+        ) : null}
 
         {/* Botão de Preenchimento da Conta Demo */}
         <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-2xl flex items-center justify-between">
@@ -83,8 +115,8 @@ export const LoginPage: React.FC = () => {
               <Sparkles size={16} />
             </div>
             <div className="text-xs">
-              <span className="font-bold text-white block">Quer testar o sistema?</span>
-              <span className="text-emerald-300/80">Conta demo com +R$ 380k simulados</span>
+              <span className="font-bold text-white block">Usuário de Demonstração</span>
+              <span className="text-emerald-300/80">teste / teste123 (+R$ 380k simulados)</span>
             </div>
           </div>
           <button

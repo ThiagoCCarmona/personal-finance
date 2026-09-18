@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -35,7 +35,7 @@ export const LandingPage: React.FC = () => {
 
     try {
       setLoadingDemo(true);
-      await login('admin', 'admin123');
+      await login('teste', 'teste123');
       navigate('/dashboard');
     } catch (err) {
       console.warn('Login direto na demo indisponível, redirecionando para a página de login:', err);
@@ -224,7 +224,13 @@ export const LandingPage: React.FC = () => {
             <a href="#fronteira" className="hover:text-emerald-400 transition-colors">Fronteira</a>
             <a href="#evolucao" className="hover:text-emerald-400 transition-colors">Evolução</a>
             <a href="#planos" className="hover:text-emerald-400 transition-colors">Planos</a>
-            <Link to="/login" className="hover:text-emerald-400 transition-colors font-semibold">Área do Cliente</Link>
+            <a 
+              href="https://finan.tccodes.com.br/login" 
+              className="hover:text-emerald-400 transition-colors font-semibold text-emerald-300"
+              title="Acessar sistema real de produção"
+            >
+              Área do Cliente (Sistema Real)
+            </a>
           </div>
 
           <div className="text-center sm:text-right">

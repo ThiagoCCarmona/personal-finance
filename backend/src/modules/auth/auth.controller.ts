@@ -71,6 +71,18 @@ export class AuthController {
 
   async login(req: FastifyRequest, reply: FastifyReply) {
     const body = loginSchema.parse(req.body);
+
+    // Verificação de isolamento por domínio:
+    // No domínio finansmart.tccodes.com.br, apenas o usuário vitrine 'teste' pode autenticar.
+    const hostHeader = (req.headers['x-forwarded-host'] || req.headers.host || '') as string;
+    const isFinansmartDomain = hostHeader.toLowerCase().includes('finansmart');
+
+    if (isFinansmartDomain && body.login.trim().toLowerCase() !== 'teste') {
+      return reply.status(403).send({
+        error: 'O domínio finansmart é exclusivo para a demonstração pública (usuário: teste). Para acessar sua conta real, utilize https://finan.tccodes.com.br',
+      });
+    }
+
     const result = await authService.login(body);
 
     reply.setCookie('sessionId', result.sessionToken, {

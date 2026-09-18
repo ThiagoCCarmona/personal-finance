@@ -76,13 +76,14 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onOpenDemo, loadin
             <span>(45) 99132-5244</span>
           </a>
 
-          <Link
-            to="/login"
+          <a
+            href="https://finan.tccodes.com.br/login"
             className="flex items-center space-x-1 px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700/60 rounded-xl transition-colors"
+            title="Acessar Sistema de Produção"
           >
             <LogIn size={15} />
             <span>Acessar</span>
-          </Link>
+          </a>
 
           <button
             onClick={onOpenDemo}
@@ -148,13 +149,13 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onOpenDemo, loadin
                 <span>WhatsApp: (45) 99132-5244</span>
               </a>
 
-              <Link
-                to="/login"
-                className="w-full flex items-center justify-center space-x-2 py-2.5 text-xs font-semibold text-slate-300 bg-slate-900 border border-slate-800 rounded-xl"
+              <a
+                href="https://finan.tccodes.com.br/login"
+                className="w-full flex items-center justify-center space-x-2 py-2.5 text-xs font-semibold text-slate-300 bg-slate-900 border border-slate-800 rounded-xl hover:text-white"
               >
                 <LogIn size={16} />
-                <span>Entrar na Minha Conta</span>
-              </Link>
+                <span>Entrar no Sistema Real (Área do Cliente)</span>
+              </a>
 
               <button
                 onClick={() => {

@@ -60,7 +60,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   );
 };
 
-// Rota raiz inteligente: visitantes não autenticados veem a Landing Page; autenticados vão ao Dashboard
+// Rota raiz inteligente:
+// - No domínio real (ex: finan.tccodes.com.br): não autenticados vão direto para /login
+// - No domínio de vendas/marketing (ex: finansmart.tccodes.com.br ou local): não autenticados veem a LandingPage
 const RootRoute: React.FC = () => {
   const { user, loading, setupRequired } = useAuth();
 
@@ -81,6 +83,13 @@ const RootRoute: React.FC = () => {
 
   if (user) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  const hostname = window.location.hostname.toLowerCase();
+  const isProductionAppDomain = hostname.includes('finan.tccodes') && !hostname.includes('finansmart');
+
+  if (isProductionAppDomain) {
+    return <Navigate to="/login" replace />;
   }
 
   return <LandingPage />;
