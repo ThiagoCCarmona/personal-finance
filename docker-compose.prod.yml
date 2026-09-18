@@ -32,7 +32,7 @@ services:
       - proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.finansmart.rule=Host(`finansmart.tccodes.com.br`)"
+      - "traefik.http.routers.finansmart.rule=Host(`finansmart.tccodes.com.br`) || Host(`finan.tccodes.com.br`)"
       - "traefik.http.routers.finansmart.entrypoints=websecure"
       - "traefik.http.routers.finansmart.tls.certresolver=myresolver"
       - "traefik.http.services.finansmart.loadbalancer.server.port=3001"
