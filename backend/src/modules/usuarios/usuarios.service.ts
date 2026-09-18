@@ -35,7 +35,7 @@ export class UsuariosService {
 
   async criar(dados: CriarUsuarioInput) {
     const loginClean = dados.login.trim();
-    const nomeClean = dados.nome.trim();
+    const nomeClean = (dados.nome || dados.login).trim();
 
     const { rows: exist } = await query(
       `SELECT id FROM usuario WHERE LOWER(login) = LOWER($1)`,
@@ -45,8 +45,9 @@ export class UsuariosService {
       throw new Error(`Já existe um usuário com o login "${loginClean}".`);
     }
 
+    const senhaValida = (dados.senha || dados.senha_inicial)!;
     const salt = await bcrypt.genSalt(12);
-    const senhaHash = await bcrypt.hash(dados.senha, salt);
+    const senhaHash = await bcrypt.hash(senhaValida, salt);
 
     return withTransaction(async (client) => {
       const { rows } = await client.query(
@@ -81,12 +82,16 @@ export class UsuariosService {
       }
     }
 
+    const nomeFinal = dados.nome !== undefined && dados.nome !== null ? dados.nome.trim() : usuario.nome;
+    const roleFinal = dados.role !== undefined ? dados.role : usuario.role;
+    const ativoFinal = dados.ativo !== undefined ? dados.ativo : usuario.ativo;
+
     const { rows } = await query(
       `UPDATE usuario
        SET nome = $1, role = $2, ativo = $3, atualizado_em = NOW()
        WHERE id = $4
        RETURNING id, login, nome, role, ativo, precisa_trocar_senha, atualizado_em`,
-      [dados.nome.trim(), dados.role, dados.ativo, id]
+      [nomeFinal, roleFinal, ativoFinal, id]
     );
 
     return rows[0];

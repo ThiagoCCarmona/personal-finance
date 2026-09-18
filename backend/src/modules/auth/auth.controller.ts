@@ -93,7 +93,8 @@ export class AuthController {
     }
 
     const body = trocarSenhaPrimeiroAcessoSchema.parse(req.body);
-    const result = await authService.trocarSenhaPrimeiroAcesso(usuario.id, body.novaSenha);
+    const senhaFinal = (body.novaSenha || body.nova_senha)!;
+    const result = await authService.trocarSenhaPrimeiroAcesso(usuario.id, senhaFinal);
 
     return reply.send({
       message: 'Senha atualizada com sucesso!',

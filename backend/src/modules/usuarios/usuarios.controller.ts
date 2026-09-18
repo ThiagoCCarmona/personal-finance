@@ -26,7 +26,14 @@ export class UsuariosController {
   async criar(req: FastifyRequest, reply: FastifyReply) {
     this.checkAdmin(req);
     const body = criarUsuarioSchema.parse(req.body);
-    const novoUsuario = await usuariosService.criar(body);
+    const senhaFinal = (body.senha || body.senha_inicial)!;
+    const roleFinal = body.role === 'admin' ? 'admin' : 'user';
+    const novoUsuario = await usuariosService.criar({ 
+      login: body.login, 
+      nome: body.nome || body.login, 
+      senha: senhaFinal, 
+      role: roleFinal as any 
+    });
     return reply.status(201).send(novoUsuario);
   }
 
@@ -34,7 +41,12 @@ export class UsuariosController {
     const admin = this.checkAdmin(req);
     const { id } = req.params as { id: string };
     const body = atualizarUsuarioSchema.parse(req.body);
-    const atualizado = await usuariosService.atualizar(id, body, admin.id);
+    const roleFinal = body.role ? (body.role === 'admin' ? 'admin' : 'user') : undefined;
+    const atualizado = await usuariosService.atualizar(id, { 
+      nome: body.nome ?? undefined, 
+      role: roleFinal as any, 
+      ativo: body.ativo 
+    }, admin.id);
     return reply.send(atualizado);
   }
 
@@ -42,7 +54,8 @@ export class UsuariosController {
     this.checkAdmin(req);
     const { id } = req.params as { id: string };
     const body = resetarSenhaUsuarioSchema.parse(req.body);
-    const res = await usuariosService.resetarSenha(id, body.novaSenha);
+    const senhaFinal = (body.novaSenha || body.nova_senha_temporaria)!;
+    const res = await usuariosService.resetarSenha(id, senhaFinal);
     return reply.send(res);
   }
 

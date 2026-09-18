@@ -56,7 +56,13 @@ export const api = {
   register: (body: { login: string; senha: string; nome?: string }) => request<any>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body: { login: string; senha: string }) => request<any>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   logout: () => request<any>('/auth/logout', { method: 'POST' }),
-  trocarSenhaPrimeiroAcesso: (body: { nova_senha: string }) => request<any>('/auth/trocar-senha-primeiro-acesso', { method: 'POST', body: JSON.stringify(body) }),
+  trocarSenhaPrimeiroAcesso: (body: { nova_senha?: string; novaSenha?: string }) => {
+    const senha = body.novaSenha || body.nova_senha || '';
+    return request<any>('/auth/trocar-senha-primeiro-acesso', { 
+      method: 'POST', 
+      body: JSON.stringify({ novaSenha: senha, nova_senha: senha }) 
+    });
+  },
   atualizarPerfil: (body: { nome: string }) => request<any>('/auth/perfil', { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Instituições
@@ -227,9 +233,27 @@ export const api = {
 
   // Usuários (Gestão do Administrador)
   getUsuarios: () => request<import('../types/index.js').UsuarioAdmin[]>('/usuarios'),
-  createUsuario: (body: { login: string; nome?: string; senha_inicial: string; role?: 'admin' | 'usuario' }) => request<import('../types/index.js').UsuarioAdmin>('/usuarios', { method: 'POST', body: JSON.stringify(body) }),
+  createUsuario: (body: { login: string; nome?: string; senha_inicial?: string; senha?: string; role?: 'admin' | 'usuario' }) => {
+    const pass = body.senha_inicial || body.senha || '';
+    return request<import('../types/index.js').UsuarioAdmin>('/usuarios', { 
+      method: 'POST', 
+      body: JSON.stringify({ 
+        login: body.login, 
+        nome: body.nome, 
+        senha: pass, 
+        senha_inicial: pass, 
+        role: body.role || 'usuario' 
+      }) 
+    });
+  },
   updateUsuario: (id: string, body: { nome?: string; role?: 'admin' | 'usuario'; ativo?: boolean }) => request<import('../types/index.js').UsuarioAdmin>(`/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
-  resetarSenhaUsuario: (id: string, body: { nova_senha_temporaria: string }) => request<any>(`/usuarios/${id}/reset-senha`, { method: 'POST', body: JSON.stringify(body) }),
+  resetarSenhaUsuario: (id: string, body: { nova_senha_temporaria?: string; novaSenha?: string }) => {
+    const pass = body.nova_senha_temporaria || body.novaSenha || '';
+    return request<any>(`/usuarios/${id}/reset-senha`, { 
+      method: 'POST', 
+      body: JSON.stringify({ novaSenha: pass, nova_senha_temporaria: pass }) 
+    });
+  },
   deleteUsuario: (id: string) => request<any>(`/usuarios/${id}`, { method: 'DELETE' }),
 };
 

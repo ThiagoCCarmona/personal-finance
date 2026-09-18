@@ -20,7 +20,10 @@ export const loginSchema = z.object({
 });
 
 export const trocarSenhaPrimeiroAcessoSchema = z.object({
-  novaSenha: z.string().min(6, 'A nova senha deve ter no mínimo 6 caracteres').max(100),
+  novaSenha: z.string().min(6, 'A nova senha deve ter no mínimo 6 caracteres').max(100).optional(),
+  nova_senha: z.string().min(6, 'A nova senha deve ter no mínimo 6 caracteres').max(100).optional(),
+}).refine(data => Boolean(data.novaSenha || data.nova_senha), {
+  message: 'A nova senha deve ter no mínimo 6 caracteres',
 });
 
 export const atualizarPerfilSchema = z.object({
