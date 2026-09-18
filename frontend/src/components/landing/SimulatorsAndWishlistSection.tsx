@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, 
   TrendingUp, 
@@ -12,7 +12,13 @@ import {
   Calendar,
   AlertTriangle,
   Percent,
-  ArrowRight
+  ArrowRight,
+  Calculator,
+  Table as TableIcon,
+  BarChart3,
+  ArrowUpRight,
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -21,7 +27,8 @@ import {
   Area, 
   XAxis, 
   YAxis, 
-  Tooltip 
+  Tooltip,
+  CartesianGrid
 } from 'recharts';
 
 export const SimulatorsAndWishlistSection: React.FC = () => {
@@ -76,39 +83,132 @@ export const SimulatorsAndWishlistSection: React.FC = () => {
   const saldoProjetadoFinal = saldoProjetadoBase - impactoProximoMes;
   const limiteDisponivelAposCompra = limiteCartaoBase - valorBrlTotal;
 
-  // --- Estados do Simulador de Juros Compostos ---
-  const [jurosInicial, setJurosInicial] = useState(15000);
-  const [jurosAporte, setJurosAporte] = useState(1200);
-  const [jurosAnos, setJurosAnos] = useState(5);
-  const [jurosTaxaAnual, setJurosTaxaAnual] = useState(12.0); // % a.a.
+  // --- Estados do Simulador de Juros Compostos (MOTOR COMPLETO IDÊNTICO À PRODUÇÃO) ---
+  const saldoUnificadoSimuladoJuros = 18450.00;
+  const [jurosValorInicial, setJurosValorInicial] = useState<string>('10000');
+  const [jurosAporteMensal, setJurosAporteMensal] = useState<string>('1000');
+  const [jurosTaxa, setJurosTaxa] = useState<string>('11.75');
+  const [jurosTipoTaxa, setJurosTipoTaxa] = useState<'anual' | 'mensal'>('anual');
+  const [jurosPrazo, setJurosPrazo] = useState<string>('5');
+  const [jurosTipoPrazo, setJurosTipoPrazo] = useState<'anos' | 'meses'>('anos');
+  const [jurosInflacaoAnual, setJurosInflacaoAnual] = useState<string>('4.5');
+  const [jurosTipoTributacao, setJurosTipoTributacao] = useState<'regressivo' | 'isento' | 'fixo'>('regressivo');
+  const [jurosAliquotaFixa, setJurosAliquotaFixa] = useState<string>('15');
+  const [jurosVisualizacaoTabela, setJurosVisualizacaoTabela] = useState<'ano' | 'mes'>('ano');
 
-  // Série para gráfico de juros compostos
-  const dadosGraficoJuros = React.useMemo(() => {
-    const totalMeses = jurosAnos * 12;
-    const taxaMensal = Math.pow(1 + jurosTaxaAnual / 100, 1 / 12) - 1;
+  // Predefinições de Mercado
+  const aplicarPredefinicaoJuros = (_nome: string, taxa: string, tipo: 'anual' | 'mensal', trib: 'regressivo' | 'isento') => {
+    setJurosTaxa(taxa);
+    setJurosTipoTaxa(tipo);
+    setJurosTipoTributacao(trib);
+  };
 
-    let saldo = jurosInicial;
-    let investido = jurosInicial;
-    const pontos = [];
+  // Cálculo Dinâmico em Memória (100% fiel ao SimuladorPage.tsx)
+  const calculoJuros = useMemo(() => {
+    const vInicial = Math.max(0, parseFloat(jurosValorInicial) || 0);
+    const vMensal = Math.max(0, parseFloat(jurosAporteMensal) || 0);
+    const pAnos = jurosTipoPrazo === 'anos' ? (parseFloat(jurosPrazo) || 0) : (parseFloat(jurosPrazo) || 0) / 12;
+    const totalMeses = Math.max(1, Math.round(pAnos * 12));
 
-    for (let m = 0; m <= totalMeses; m++) {
-      if (m % 12 === 0 || m === totalMeses) {
-        pontos.push({
-          ano: `Ano ${m / 12}`,
-          totalAcumulado: Math.round(saldo),
-          totalInvestido: Math.round(investido),
-          lucroJuros: Math.max(0, Math.round(saldo - investido))
-        });
-      }
-      saldo = saldo * (1 + taxaMensal) + jurosAporte;
-      investido += jurosAporte;
+    // Converte taxa para taxa mensal efetiva
+    const tJurosNum = (parseFloat(jurosTaxa) || 0) / 100;
+    let taxaMensal = 0;
+    if (jurosTipoTaxa === 'anual') {
+      taxaMensal = Math.pow(1 + tJurosNum, 1 / 12) - 1;
+    } else {
+      taxaMensal = tJurosNum;
     }
-    return pontos;
-  }, [jurosInicial, jurosAporte, jurosAnos, jurosTaxaAnual]);
 
-  const valorFinalAcumulado = dadosGraficoJuros[dadosGraficoJuros.length - 1]?.totalAcumulado || 0;
-  const totalProprioInvestido = dadosGraficoJuros[dadosGraficoJuros.length - 1]?.totalInvestido || 0;
-  const lucroJurosCompostos = Math.max(0, valorFinalAcumulado - totalProprioInvestido);
+    // Inflação mensal
+    const infAnualNum = (parseFloat(jurosInflacaoAnual) || 0) / 100;
+    const inflacaoMensal = Math.pow(1 + infAnualNum, 1 / 12) - 1;
+
+    let saldoAcumulado = vInicial;
+    let totalInvestido = vInicial;
+    let fatorInflacao = 1;
+
+    const serieMensal: Array<{
+      mes: number;
+      ano: number;
+      label: string;
+      investido: number;
+      jurosMes: number;
+      jurosAcumulados: number;
+      saldoBruto: number;
+      saldoReal: number;
+    }> = [];
+
+    for (let m = 1; m <= totalMeses; m++) {
+      const jurosDoMes = saldoAcumulado * taxaMensal;
+      saldoAcumulado = saldoAcumulado + jurosDoMes + vMensal;
+      totalInvestido += vMensal;
+      fatorInflacao *= (1 + inflacaoMensal);
+
+      const jurosTotaisAteAgora = Math.max(0, saldoAcumulado - totalInvestido);
+      const saldoAjustadoInflacao = saldoAcumulado / fatorInflacao;
+
+      serieMensal.push({
+        mes: m,
+        ano: Math.ceil(m / 12),
+        label: m % 12 === 0 ? `Ano ${m / 12}` : `Mês ${m}`,
+        investido: Math.round(totalInvestido * 100) / 100,
+        jurosMes: Math.round(jurosDoMes * 100) / 100,
+        jurosAcumulados: Math.round(jurosTotaisAteAgora * 100) / 100,
+        saldoBruto: Math.round(saldoAcumulado * 100) / 100,
+        saldoReal: Math.round(saldoAjustadoInflacao * 100) / 100,
+      });
+    }
+
+    const valorFinalBruto = saldoAcumulado;
+    const totalJurosGanhos = Math.max(0, valorFinalBruto - totalInvestido);
+
+    // Cálculo do Imposto de Renda
+    let aliquotaIr = 0;
+    if (jurosTipoTributacao === 'isento') {
+      aliquotaIr = 0;
+    } else if (jurosTipoTributacao === 'fixo') {
+      aliquotaIr = (parseFloat(jurosAliquotaFixa) || 0) / 100;
+    } else {
+      // Regressivo por tempo em dias (~30 dias por mês)
+      const dias = totalMeses * 30;
+      if (dias <= 180) aliquotaIr = 0.225;
+      else if (dias <= 360) aliquotaIr = 0.20;
+      else if (dias <= 720) aliquotaIr = 0.175;
+      else aliquotaIr = 0.15;
+    }
+
+    const irEstimado = totalJurosGanhos * aliquotaIr;
+    const valorLiquido = valorFinalBruto - irEstimado;
+    const valorRealLiquido = valorLiquido / fatorInflacao;
+
+    // Renda passiva mensal estimada no final mantendo o principal
+    const rendaMensalPassiva = valorLiquido * taxaMensal;
+
+    // Série resumida anual para gráfico e tabela
+    const serieAnual = serieMensal.filter(item => item.mes % 12 === 0 || item.mes === totalMeses);
+
+    const lucroLiquidoNovo = Math.round(Math.max(0, valorLiquido - vInicial) * 100) / 100;
+    const crescimentoSobreInicial = vInicial > 0 ? ((lucroLiquidoNovo / vInicial) * 100).toFixed(1) : '100';
+
+    return {
+      totalMeses,
+      taxaMensalPct: (taxaMensal * 100).toFixed(2),
+      taxaAnualPct: ((Math.pow(1 + taxaMensal, 12) - 1) * 100).toFixed(2),
+      totalInvestido: Math.round(totalInvestido * 100) / 100,
+      totalJurosGanhos: Math.round(totalJurosGanhos * 100) / 100,
+      valorFinalBruto: Math.round(valorFinalBruto * 100) / 100,
+      aliquotaIrPct: (aliquotaIr * 100).toFixed(1),
+      irEstimado: Math.round(irEstimado * 100) / 100,
+      valorLiquido: Math.round(valorLiquido * 100) / 100,
+      valorRealLiquido: Math.round(valorRealLiquido * 100) / 100,
+      rendaMensalPassiva: Math.round(rendaMensalPassiva * 100) / 100,
+      lucroLiquidoNovo,
+      crescimentoSobreInicial,
+      rentabilidadeTotalPct: totalInvestido > 0 ? ((totalJurosGanhos / totalInvestido) * 100).toFixed(1) : '0',
+      serieMensal,
+      serieAnual
+    };
+  }, [jurosValorInicial, jurosAporteMensal, jurosTaxa, jurosTipoTaxa, jurosPrazo, jurosTipoPrazo, jurosInflacaoAnual, jurosTipoTributacao, jurosAliquotaFixa]);
 
   // --- Estados da Wishlist ---
   const [wishlistItens] = useState([
@@ -603,7 +703,7 @@ export const SimulatorsAndWishlistSection: React.FC = () => {
             )}
 
             {/* ========================================================================= */}
-            {/* FEATURE 2: SIMULADOR DE JUROS COMPOSTOS & TABELA PRICE */}
+            {/* FEATURE 2: SIMULADOR DE JUROS COMPOSTOS & PROJEÇÃO PATRIMONIAL */}
             {/* ========================================================================= */}
             {activeFeature === 'juros' && (
               <motion.div
@@ -612,132 +712,508 @@ export const SimulatorsAndWishlistSection: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
                 transition={{ duration: 0.3 }}
-                className="space-y-8"
+                className="space-y-6"
               >
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-                  
-                  {/* Controles de Investimento e Juros */}
-                  <div className="lg:col-span-5 space-y-5">
+                {/* Header Idêntico ao Sistema Real */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                      <Calculator className="text-emerald-400 w-6 h-6" />
+                      <span>Simulador Completo de Juros Compostos</span>
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                      Planeje seus objetivos financeiros com controle total de taxas, aportes, inflação e imposto de renda.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold flex items-center gap-1">
+                      <Sparkles size={12} /> Cálculo Realtime
+                    </span>
+                    <a
+                      href="/login?demo=true"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-emerald-600 hover:text-white border border-slate-700 text-slate-300 text-xs font-semibold transition"
+                    >
+                      <span>Abrir na Demo</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Sugestões Rápidas de Mercado */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                  <span className="text-xs font-semibold uppercase text-slate-400 shrink-0 flex items-center gap-1">
+                    <Sparkles size={13} className="text-amber-400" />
+                    Cenários rápidos:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPredefinicaoJuros('100% CDI', '10.50', 'anual', 'regressivo')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-blue-500/50 text-xs font-medium text-slate-300 hover:text-white transition whitespace-nowrap"
+                  >
+                    100% CDI (10,5% a.a.)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPredefinicaoJuros('CDB 110%', '11.55', 'anual', 'regressivo')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-blue-500/50 text-xs font-medium text-slate-300 hover:text-white transition whitespace-nowrap"
+                  >
+                    CDB 110% CDI (11,55% a.a.)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPredefinicaoJuros('LCI/LCA', '9.25', 'anual', 'isento')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500/50 text-xs font-medium text-emerald-400 hover:text-white transition whitespace-nowrap"
+                  >
+                    LCI/LCA Isento (9,25% a.a.)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPredefinicaoJuros('FIIs / Dividendos', '0.85', 'mensal', 'isento')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-purple-500/50 text-xs font-medium text-purple-400 hover:text-white transition whitespace-nowrap"
+                  >
+                    FIIs / Ações (0,85% a.m. isento)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPredefinicaoJuros('Poupança', '6.17', 'anual', 'isento')}
+                    className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-xs font-medium text-slate-400 hover:text-white transition whitespace-nowrap"
+                  >
+                    Poupança (6,17% a.a.)
+                  </button>
+                </div>
+
+                {/* Formulário de Configuração dos Parâmetros */}
+                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                    <TrendingUp size={15} className="text-emerald-400" />
+                    Configuração Personalizada dos Parâmetros
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                    {/* Aporte Inicial */}
                     <div>
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 text-xs font-semibold mb-2">
-                        <TrendingUp size={14} />
-                        <span>Poder dos Juros Compostos</span>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-semibold text-slate-300">
+                          Aporte Inicial (R$)
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-mono" title="Saldo somado demonstrativo">
+                          Saldo: R$ {saldoUnificadoSimuladoJuros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
                       </div>
-                      <h3 className="text-xl sm:text-2xl font-bold text-white">
-                        Construção de Patrimônio & Metas
-                      </h3>
-                      <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                        Veja quanto seu dinheiro rende ao longo do tempo com aportes regulares e juros trabalhando a seu favor.
+                      <input
+                        type="number"
+                        min="0"
+                        step="500"
+                        value={jurosValorInicial}
+                        onChange={e => setJurosValorInicial(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 font-medium focus:outline-none focus:border-emerald-500"
+                      />
+                      <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                        <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-0.5">
+                          <Wallet size={10} /> Saldo:
+                        </span>
+                        {[
+                          { label: '10%', val: 0.10 },
+                          { label: '25%', val: 0.25 },
+                          { label: '50%', val: 0.50 },
+                          { label: '75%', val: 0.75 },
+                          { label: '100%', val: 1.00 }
+                        ].map(item => (
+                          <button
+                            key={item.label}
+                            type="button"
+                            onClick={() => setJurosValorInicial((saldoUnificadoSimuladoJuros * item.val).toFixed(2))}
+                            className="px-1.5 py-0.5 text-[10px] rounded bg-slate-850 hover:bg-emerald-600 hover:text-white text-slate-300 font-semibold transition border border-slate-800"
+                            title={`Preencher com ${item.label} do saldo (${(saldoUnificadoSimuladoJuros * item.val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Aporte Mensal */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Aporte Mensal (R$)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={jurosAporteMensal}
+                        onChange={e => setJurosAporteMensal(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 font-medium focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    {/* Taxa de Juros */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Taxa de Rendimento
+                      </label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={jurosTaxa}
+                          onChange={e => setJurosTaxa(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 font-medium focus:outline-none focus:border-emerald-500"
+                        />
+                        <select
+                          value={jurosTipoTaxa}
+                          onChange={e => setJurosTipoTaxa(e.target.value as any)}
+                          className="bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 shrink-0"
+                        >
+                          <option value="anual">% a.a.</option>
+                          <option value="mensal">% a.m.</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Prazo */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Período / Tempo
+                      </label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="number"
+                          min="1"
+                          max="600"
+                          value={jurosPrazo}
+                          onChange={e => setJurosPrazo(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 font-medium focus:outline-none focus:border-emerald-500"
+                        />
+                        <select
+                          value={jurosTipoPrazo}
+                          onChange={e => setJurosTipoPrazo(e.target.value as any)}
+                          className="bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 shrink-0"
+                        >
+                          <option value="anos">Anos</option>
+                          <option value="meses">Meses</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Inflação Estimada */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Inflação Anual (IPCA %)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={jurosInflacaoAnual}
+                        onChange={e => setJurosInflacaoAnual(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 font-medium focus:outline-none focus:border-emerald-500"
+                        placeholder="Ex: 4.5"
+                      />
+                    </div>
+
+                    {/* Tributação / IR */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Imposto de Renda
+                      </label>
+                      <select
+                        value={jurosTipoTributacao}
+                        onChange={e => setJurosTipoTributacao(e.target.value as any)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="regressivo">Tabela Regressiva (CDB/Tesouro)</option>
+                        <option value="isento">Isento de IR (LCI/LCA/FII)</option>
+                        <option value="fixo">Alíquota Fixa Personalizada</option>
+                      </select>
+                      {jurosTipoTributacao === 'fixo' && (
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min="0"
+                            max="50"
+                            step="0.5"
+                            value={jurosAliquotaFixa}
+                            onChange={e => setJurosAliquotaFixa(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                            placeholder="% IR"
+                          />
+                          <span className="text-xs text-slate-400">%</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cards de Métricas Principais (6 Cards Exatos) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                  {/* Total Bruto */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                    <span className="text-xs text-slate-400 font-semibold uppercase">Total Bruto Final</span>
+                    <div className="text-xl font-bold text-slate-100 mt-2 font-mono">
+                      R$ {calculoJuros.valorFinalBruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[11px] text-slate-500 mt-1">
+                      Rentabilidade: +{calculoJuros.rentabilidadeTotalPct}%
+                    </span>
+                  </div>
+
+                  {/* Total Investido */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                    <span className="text-xs text-slate-400 font-semibold uppercase">Total do Bolso</span>
+                    <div className="text-xl font-bold text-blue-400 mt-2 font-mono">
+                      R$ {calculoJuros.totalInvestido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[11px] text-slate-500 mt-1">
+                      {calculoJuros.totalMeses} aportes realizados
+                    </span>
+                  </div>
+
+                  {/* Juros Ganhos */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                    <span className="text-xs text-slate-400 font-semibold uppercase">Juros Compostos</span>
+                    <div className="text-xl font-bold text-emerald-400 mt-2 font-mono">
+                      +R$ {calculoJuros.totalJurosGanhos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[11px] text-emerald-500/80 mt-1">
+                      Dinheiro que trabalhou por você
+                    </span>
+                  </div>
+
+                  {/* Imposto de Renda */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                    <span className="text-xs text-slate-400 font-semibold uppercase">IR Estimado ({calculoJuros.aliquotaIrPct}%)</span>
+                    <div className="text-xl font-bold text-rose-400 mt-2 font-mono">
+                      -R$ {calculoJuros.irEstimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[11px] text-slate-500 mt-1">
+                      {jurosTipoTributacao === 'isento' ? 'Isenção legal aplicada' : 'Retido no resgate'}
+                    </span>
+                  </div>
+
+                  {/* Valor Líquido Final */}
+                  <div className="bg-slate-950/80 border border-blue-500/30 rounded-2xl p-4 flex flex-col justify-between bg-blue-950/20">
+                    <span className="text-xs text-blue-400 font-semibold uppercase">Valor Líquido Real</span>
+                    <div className="text-xl font-bold text-slate-100 mt-2 font-mono">
+                      R$ {calculoJuros.valorLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-1">
+                      Após desconto de IR
+                    </span>
+                  </div>
+
+                  {/* Renda Passiva Mensal */}
+                  <div className="bg-slate-950/80 border border-purple-500/30 rounded-2xl p-4 flex flex-col justify-between bg-purple-950/20">
+                    <span className="text-xs text-purple-400 font-semibold uppercase">Renda Passiva Mensal</span>
+                    <div className="text-xl font-bold text-purple-400 mt-2 font-mono">
+                      R$ {calculoJuros.rendaMensalPassiva.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      <span className="text-xs font-normal text-slate-400">/mês</span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-1">
+                      Sem consumir o patrimônio
+                    </span>
+                  </div>
+                </div>
+
+                {/* Destaque: Patrimônio Líquido Novo Gerado (Abatendo Aporte Inicial) */}
+                <div className="bg-gradient-to-r from-emerald-950/50 via-slate-900 to-blue-950/50 border border-emerald-500/30 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <ArrowUpRight size={24} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                          Patrimônio Novo Criado (Abatendo Aporte Inicial)
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold">
+                          +{calculoJuros.crescimentoSobreInicial}% sobre o início
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Valor líquido que você terá a mais em comparação ao que tem hoje (rendimento líquido + aportes mensais).
                       </p>
                     </div>
-
-                    <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
-                      <div>
-                        <label className="text-xs text-slate-400 block mb-1">Aporte Inicial (R$)</label>
-                        <input
-                          type="number"
-                          value={jurosInicial}
-                          onChange={(e) => setJurosInicial(Math.max(0, Number(e.target.value)))}
-                          className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white font-bold text-sm outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs text-slate-400 block mb-1">Aporte Mensal (R$)</label>
-                        <input
-                          type="number"
-                          value={jurosAporte}
-                          onChange={(e) => setJurosAporte(Math.max(0, Number(e.target.value)))}
-                          className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-white font-bold text-sm outline-none"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs text-slate-400 block mb-1">Prazo (Anos)</label>
-                          <select
-                            value={jurosAnos}
-                            onChange={(e) => setJurosAnos(Number(e.target.value))}
-                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white outline-none cursor-pointer"
-                          >
-                            {[1, 2, 3, 5, 10, 15, 20].map(a => (
-                              <option key={a} value={a}>{a} anos</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="text-xs text-slate-400 block mb-1">Rentabilidade Anual</label>
-                          <div className="flex items-center px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold text-emerald-400">
-                            <input
-                              type="number"
-                              step="0.5"
-                              value={jurosTaxaAnual}
-                              onChange={(e) => setJurosTaxaAnual(Math.max(1, Number(e.target.value)))}
-                              className="w-full bg-transparent outline-none text-emerald-400 font-bold"
-                            />
-                            <span>% a.a.</span>
-                          </div>
-                        </div>
-                      </div>
+                  </div>
+                  <div className="text-left sm:text-right sm:border-l sm:border-slate-800 sm:pl-6">
+                    <div className="text-2xl font-black text-emerald-400 font-mono">
+                      +R$ {calculoJuros.lucroLiquidoNovo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </div>
+                    <span className="text-[11px] text-slate-500 block">
+                      Crescimento patrimonial puro
+                    </span>
+                  </div>
+                </div>
 
-                    {/* Resumo dos Números */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                        <span className="text-[11px] text-slate-400 block">Total Investido por Você</span>
-                        <div className="text-base font-bold text-white mt-1">
-                          R$ {totalProprioInvestido.toLocaleString('pt-BR')}
-                        </div>
-                      </div>
-                      <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30">
-                        <span className="text-[11px] text-emerald-400 block">Ganho em Juros</span>
-                        <div className="text-base font-bold text-emerald-400 mt-1">
-                          + R$ {lucroJurosCompostos.toLocaleString('pt-BR')}
-                        </div>
-                      </div>
+                {/* Gráfico da Evolução Temporal Acumulada */}
+                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                        <BarChart3 size={18} className="text-blue-500" />
+                        <span>Evolução Temporal do Patrimônio</span>
+                      </h4>
+                      <span className="text-xs text-slate-400">
+                        Acompanhe a curva exponencial dos juros compostos superando o total aportado
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs">
+                      <span className="flex items-center gap-1.5 text-blue-400">
+                        <span className="w-3 h-3 rounded-full bg-blue-500" />
+                        Capital Aportado
+                      </span>
+                      <span className="flex items-center gap-1.5 text-emerald-400">
+                        <span className="w-3 h-3 rounded-full bg-emerald-500" />
+                        Juros Acumulados
+                      </span>
                     </div>
                   </div>
 
-                  {/* Gráfico de Evolução Patrimonial */}
-                  <div className="lg:col-span-7 bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-bold text-white">Evolução do Patrimônio Acumulado</h4>
-                        <span className="text-xs text-slate-400">Projeção ano a ano com aportes reinvestidos</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[11px] text-slate-400 block">Patrimônio Estimado</span>
-                        <span className="text-xl font-extrabold text-emerald-400">
-                          R$ {valorFinalAcumulado.toLocaleString('pt-BR')}
-                        </span>
-                      </div>
+                  <div className="h-80 w-full pt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={calculoJuros.totalMeses > 60 ? calculoJuros.serieAnual : calculoJuros.serieMensal}>
+                        <defs>
+                          <linearGradient id="corInvestidoLanding" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0}/>
+                          </linearGradient>
+                          <linearGradient id="corJurosLanding" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.5}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis dataKey="label" stroke="#64748b" fontSize={11} tickLine={false} />
+                        <YAxis 
+                          stroke="#64748b" 
+                          fontSize={11} 
+                          tickLine={false} 
+                          tickFormatter={(val) => `R$ ${(val / 1000).toFixed(0)}k`} 
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#0f172a', 
+                            borderColor: '#334155', 
+                            borderRadius: '12px',
+                            color: '#f8fafc',
+                            fontSize: '12px'
+                          }}
+                          formatter={(val: any) => [`R$ ${Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="investido" 
+                          name="Total Aportado" 
+                          stroke="#3b82f6" 
+                          strokeWidth={2}
+                          fillOpacity={1} 
+                          fill="url(#corInvestidoLanding)" 
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="saldoBruto" 
+                          name="Total com Juros" 
+                          stroke="#10b981" 
+                          strokeWidth={2}
+                          fillOpacity={1} 
+                          fill="url(#corJurosLanding)" 
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Tabela de Evolução Período a Período (Idêntica à Tela Real) */}
+                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                        <TableIcon size={18} className="text-emerald-500" />
+                        <span>Detalhamento da Evolução Período a Período</span>
+                      </h4>
+                      <span className="text-xs text-slate-400">
+                        Visualize exatamente quanto rende cada período
+                      </span>
                     </div>
 
-                    <div className="h-64 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={dadosGraficoJuros}>
-                          <defs>
-                            <linearGradient id="corPatrimonio" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.5}/>
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <XAxis dataKey="ano" stroke="#64748b" fontSize={11} tickLine={false} />
-                          <YAxis stroke="#64748b" fontSize={11} tickLine={false} tickFormatter={(v) => `R$${v/1000}k`} />
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }}
-                            formatter={(value: any) => [`R$ ${Number(value).toLocaleString('pt-BR')}`, '']}
-                          />
-                          <Area type="monotone" dataKey="totalAcumulado" stroke="#10b981" strokeWidth={2} fill="url(#corPatrimonio)" />
-                        </AreaChart>
-                      </ResponsiveContainer>
+                    <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                      <button
+                        onClick={() => setJurosVisualizacaoTabela('ano')}
+                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${
+                          jurosVisualizacaoTabela === 'ano'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Ano a Ano
+                      </button>
+                      <button
+                        onClick={() => setJurosVisualizacaoTabela('mes')}
+                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${
+                          jurosVisualizacaoTabela === 'mes'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Mês a Mês
+                      </button>
                     </div>
+                  </div>
 
-                    <div className="p-3 bg-slate-900 rounded-xl text-xs text-slate-400 flex items-center justify-between">
-                      <span>Rentabilidade composta real com aportes mensais</span>
-                      <span className="text-indigo-400 font-semibold">Simulador 100% Gratuito na Demo</span>
-                    </div>
+                  <div className="overflow-x-auto max-h-80 rounded-xl border border-slate-800 scrollbar-thin">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-900/90 sticky top-0 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-800 backdrop-blur">
+                        <tr>
+                          <th className="py-3 px-4">Período</th>
+                          <th className="py-3 px-4">Total Aportado</th>
+                          <th className="py-3 px-4">Juros no Período</th>
+                          <th className="py-3 px-4">Juros Acumulados</th>
+                          <th className="py-3 px-4">Saldo Bruto</th>
+                          <th className="py-3 px-4">Poder de Compra Real</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono">
+                        {(jurosVisualizacaoTabela === 'ano' ? calculoJuros.serieAnual : calculoJuros.serieMensal).map((item) => (
+                          <tr key={item.mes} className="hover:bg-slate-900/60 transition">
+                            <td className="py-2.5 px-4 font-sans font-medium text-slate-200">{item.label}</td>
+                            <td className="py-2.5 px-4 text-blue-400">R$ {item.investido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-2.5 px-4 text-emerald-400">+R$ {item.jurosMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-2.5 px-4 text-emerald-300">R$ {item.jurosAcumulados.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-2.5 px-4 font-bold text-slate-100">R$ {item.saldoBruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="py-2.5 px-4 text-purple-400">R$ {item.saldoReal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Card Educativo / Diferenciais FinanSmart (A Mais que o Sistema) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-slate-400 space-y-1.5">
+                    <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                      <ShieldCheck size={14} /> Cálculo Tributário Oficial
+                    </span>
+                    <p className="text-[11px] leading-relaxed">
+                      FinanSmart aplica automaticamente as faixas regressivas de 22,5% a 15% conforme a Lei 11.033/2004 para que você saiba exatamente o valor líquido de resgate.
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-slate-400 space-y-1.5">
+                    <span className="text-purple-400 font-bold flex items-center gap-1.5">
+                      <Zap size={14} /> Desconto de Inflação IPCA
+                    </span>
+                    <p className="text-[11px] leading-relaxed">
+                      A coluna <strong className="text-slate-200">Poder de Compra Real</strong> desconta o IPCA projetado para garantir que você não seja enganado por ilusão monetária ao longo dos anos.
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-slate-400 space-y-1.5">
+                    <span className="text-blue-400 font-bold flex items-center gap-1.5">
+                      <Wallet size={14} /> Integração com Saldo Unificado
+                    </span>
+                    <p className="text-[11px] leading-relaxed">
+                      No sistema FinanSmart autenticado, os botões de 10% a 100% leem o saldo real somado de todas as suas contas bancárias para simulações instantâneas.
+                    </p>
                   </div>
                 </div>
               </motion.div>
