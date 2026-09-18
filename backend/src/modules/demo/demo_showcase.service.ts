@@ -83,7 +83,12 @@ export class DemoShowcaseService {
       await client.query(`DELETE FROM recorrencia WHERE usuario_id = $1`, [testeUserId]);
       await client.query(`DELETE FROM cartao_credito WHERE usuario_id = $1`, [testeUserId]);
       await client.query(`DELETE FROM conta WHERE usuario_id = $1`, [testeUserId]);
-      await client.query(`DELETE FROM instituicao WHERE usuario_id = $1`, [testeUserId]);
+      await client.query(
+        `DELETE FROM instituicao 
+         WHERE usuario_id = $1 
+           AND id NOT IN (SELECT instituicao_id FROM conta WHERE instituicao_id IS NOT NULL)`,
+        [testeUserId]
+      );
       await client.query(`DELETE FROM categoria WHERE usuario_id = $1`, [testeUserId]);
 
       // 3. Obter Moeda BRL
@@ -115,62 +120,64 @@ export class DemoShowcaseService {
       const catInvest = catMap.get('Investimentos & Dividendos') || catRows[0]?.id;
       const catOutros = catMap.get('Outros Gastos') || catRows[0]?.id;
 
-      // 5. Instituições Financeiras do Usuário Teste
-      const { rows: instNubank } = await client.query(`
-        INSERT INTO instituicao (usuario_id, nome, tipo, icone, cor, ativo)
-        VALUES ($1, 'Nubank', 'banco', 'Landmark', '#820AD1', TRUE)
-        RETURNING id
-      `, [testeUserId]);
+      // 5. Instituições Financeiras do Usuário Teste (com get or create para integridade)
+      const getOrCreateInst = async (nome: string, tipo: string, icone: string, cor: string) => {
+        const { rows: existing } = await client.query(
+          `SELECT id FROM instituicao WHERE usuario_id = $1 AND nome = $2 LIMIT 1`,
+          [testeUserId, nome]
+        );
+        if (existing.length > 0) {
+          await client.query(
+            `UPDATE instituicao SET tipo = $1, icone = $2, cor = $3, ativo = TRUE WHERE id = $4`,
+            [tipo, icone, cor, existing[0].id]
+          );
+          return existing[0].id;
+        }
+        const { rows: inserted } = await client.query(
+          `INSERT INTO instituicao (usuario_id, nome, tipo, icone, cor, ativo)
+           VALUES ($1, $2, $3, $4, $5, TRUE)
+           RETURNING id`,
+          [testeUserId, nome, tipo, icone, cor]
+        );
+        return inserted[0].id;
+      };
 
-      const { rows: instItau } = await client.query(`
-        INSERT INTO instituicao (usuario_id, nome, tipo, icone, cor, ativo)
-        VALUES ($1, 'Itaú Unibanco', 'banco', 'Landmark', '#EC7000', TRUE)
-        RETURNING id
-      `, [testeUserId]);
-
-      const { rows: instBtg } = await client.query(`
-        INSERT INTO instituicao (usuario_id, nome, tipo, icone, cor, ativo)
-        VALUES ($1, 'BTG Pactual', 'banco', 'TrendingUp', '#001E62', TRUE)
-        RETURNING id
-      `, [testeUserId]);
-
-      const { rows: instDinheiro } = await client.query(`
-        INSERT INTO instituicao (usuario_id, nome, tipo, icone, cor, ativo)
-        VALUES ($1, 'Carteira Física', 'dinheiro', 'Wallet', '#10B981', TRUE)
-        RETURNING id
-      `, [testeUserId]);
+      const idNubank = await getOrCreateInst('Nubank', 'banco', 'Landmark', '#820AD1');
+      const idItau = await getOrCreateInst('Itaú Unibanco', 'banco', 'Landmark', '#EC7000');
+      const idBtg = await getOrCreateInst('BTG Pactual', 'banco', 'TrendingUp', '#001E62');
+      const idDinheiro = await getOrCreateInst('Carteira Física', 'dinheiro', 'Wallet', '#10B981');
 
       // 6. Contas Bancárias (Saldo Consolidado demonstrativo: R$ 20.500,00)
       const { rows: contaItau } = await client.query(`
         INSERT INTO conta (usuario_id, instituicao_id, moeda_id, tipo, apelido, saldo_inicial, saldo_atual, ativo)
         VALUES ($1, $2, $3, 'corrente', 'Itaú Principal', 4850.00, 4850.00, TRUE)
         RETURNING id
-      `, [testeUserId, instItau[0].id, brlId]);
+      `, [testeUserId, idItau, brlId]);
 
       const { rows: contaNubank } = await client.query(`
         INSERT INTO conta (usuario_id, instituicao_id, moeda_id, tipo, apelido, saldo_inicial, saldo_atual, ativo)
         VALUES ($1, $2, $3, 'corrente', 'Nubank Reserva', 15300.00, 15300.00, TRUE)
         RETURNING id
-      `, [testeUserId, instNubank[0].id, brlId]);
+      `, [testeUserId, idNubank, brlId]);
 
       const { rows: contaDinheiro } = await client.query(`
         INSERT INTO conta (usuario_id, instituicao_id, moeda_id, tipo, apelido, saldo_inicial, saldo_atual, ativo)
         VALUES ($1, $2, $3, 'dinheiro', 'Carteira / Dinheiro', 350.00, 350.00, TRUE)
         RETURNING id
-      `, [testeUserId, instDinheiro[0].id, brlId]);
+      `, [testeUserId, idDinheiro, brlId]);
 
       // 7. Cartões de Crédito
       const { rows: cartaoNu } = await client.query(`
         INSERT INTO cartao_credito (usuario_id, instituicao_id, apelido, limite, dia_fechamento, dia_vencimento, ativo)
         VALUES ($1, $2, 'Nubank Ultravioleta', 12000.00, 12, 20, TRUE)
         RETURNING id
-      `, [testeUserId, instNubank[0].id]);
+      `, [testeUserId, idNubank]);
 
       const { rows: cartaoItau } = await client.query(`
         INSERT INTO cartao_credito (usuario_id, instituicao_id, apelido, limite, dia_fechamento, dia_vencimento, ativo)
         VALUES ($1, $2, 'Itaú Mastercard Black', 25000.00, 20, 28, TRUE)
         RETURNING id
-      `, [testeUserId, instItau[0].id]);
+      `, [testeUserId, idItau]);
 
       // 8. Recorrências (Receitas fixas de R$ 10.500,00 e Despesas fixas de R$ 2.635,70)
       await client.query(`
